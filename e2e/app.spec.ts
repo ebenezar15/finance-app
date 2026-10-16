@@ -23,7 +23,7 @@ test('logs an expense in under 5 seconds', async ({ page }) => {
   await page.keyboard.press('n');
   await page.keyboard.type('12.5');
   await page.getByRole('button', { name: /Groceries/ }).first().click();
-  await page.getByRole('button', { name: /^Save/ }).click();
+  await page.getByRole('button', { name: /^Save \$/ }).click();
   await expect(page.getByText(/Saved \$12\.50/)).toBeVisible();
   expect(Date.now() - t0).toBeLessThan(5000);
 });

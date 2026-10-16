@@ -64,7 +64,15 @@ export function QuickAdd() {
   const value = evalAmount(expr);
   const isExpr = /[+\-*/×÷−]/.test(expr.slice(1));
   const sugg = useMemo(() => (data ? quickSuggestions(data.all, new Date()) : []), [data]);
-  const cats = data?.categories.filter((c) => c.kind === (type === 'income' ? 'income' : 'expense')) ?? [];
+  // Most-used categories first, so the usual choice is one tap away.
+  const cats = useMemo(() => {
+    if (!data) return [];
+    const uses = new Map<string, number>();
+    for (const t of data.all) if (t.categoryId) uses.set(t.categoryId, (uses.get(t.categoryId) ?? 0) + 1);
+    return data.categories
+      .filter((c) => c.kind === (type === 'income' ? 'income' : 'expense'))
+      .sort((a, b) => (uses.get(b.id) ?? 0) - (uses.get(a.id) ?? 0));
+  }, [data, type]);
   const chosenCat = categoryId ?? autoCat?.id;
 
   const press = (k: string) => {
@@ -230,7 +238,7 @@ export function QuickAdd() {
           </div>
         )}
 
-        <div className="flex gap-2 pt-1">
+        <div className="sticky -bottom-5 -mx-5 px-5 pt-3 pb-5 -mb-5 bg-surface flex gap-2 border-t border-line/60">
           {type !== 'transfer' && <button className="btn-soft w-11 p-0" onClick={addFav} aria-label="Save as favourite" title="Save as favourite"><Star size={18} /></button>}
           <button className="btn-primary flex-1 h-12 text-base" disabled={!value || value <= 0} onClick={save}>
             Save {value ? fmt(toMinor(value)) : ''}

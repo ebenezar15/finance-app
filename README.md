@@ -8,6 +8,7 @@ An offline-first money app for households: budgets, bills, goals, debts, net wor
 npm install
 npm run dev        # http://localhost:5173
 npm test           # unit tests (money math, parsers, backup round-trip)
+npm run e2e        # browser checks: offline, no third-party requests, 5-second entry
 npm run build      # production PWA in dist/ (installable, works offline)
 npm run preview    # serve the production build
 ```
