@@ -14,6 +14,7 @@ import { DAY, addMonths, isoDate, monthKey, startOfMonth } from '../lib/dates';
 import { monthTotals } from '../lib/finance';
 import { evalAmount, toMinor } from '../lib/money';
 import { useUI } from '../store/ui';
+import { APP_LOCALE } from '../lib/locale';
 
 const tipStyle = { background: 'rgb(var(--surface))', borderRadius: 12, border: '1px solid rgb(var(--line))', fontSize: 13 };
 const localDate = (s: string) => {
@@ -68,7 +69,7 @@ function WealthInner({ data }: { data: Data }) {
     let nw = data.netWorth;
     for (let i = 0; i < 12; i++) {
       const d = addMonths(startOfMonth(now), -i);
-      pts.unshift({ label: d.toLocaleDateString(undefined, { month: 'short' }), value: nw });
+      pts.unshift({ label: d.toLocaleDateString(APP_LOCALE, { month: 'short' }), value: nw });
       nw -= monthTotals(data.all, monthKey(d)).net;
     }
     return pts;
@@ -215,7 +216,7 @@ function WealthInner({ data }: { data: Data }) {
                   <p className="font-semibold text-sm truncate">{h.name}</p>
                   <p className="text-xs text-muted">
                     {days < 0 ? `Matured ${-days} day${days === -1 ? '' : 's'} ago` : days === 0 ? 'Matures today' : `Matures in ${days} day${days === 1 ? '' : 's'}`}
-                    {' · '}{localDate(h.maturityDate!).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {' · '}{localDate(h.maturityDate!).toLocaleDateString(APP_LOCALE, { day: 'numeric', month: 'short', year: 'numeric' })}
                   </p>
                 </div>
                 <Money value={h.value} className="font-bold text-sm" />

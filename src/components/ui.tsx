@@ -128,6 +128,21 @@ export function Avatar({ m, size = 28 }: { m?: Member; size?: number }) {
   );
 }
 
+/** Renders the pending askConfirm() request as a small sheet. Mounted once in App. */
+export function ConfirmHost() {
+  const req = useUI((s) => s.confirmReq);
+  const close = (ok: boolean) => { req?.resolve(ok); useUI.setState({ confirmReq: null }); };
+  return (
+    <Sheet open={!!req} onOpenChange={(o) => !o && close(false)} title="Are you sure?">
+      <p className="text-[15px] leading-relaxed">{req?.message}</p>
+      <div className="flex gap-2 justify-end mt-6">
+        <button className="btn-soft" onClick={() => close(false)}>Cancel</button>
+        <button className={req?.danger ? 'btn bg-bad text-white hover:brightness-110' : 'btn-primary'} onClick={() => close(true)} autoFocus>{req?.action}</button>
+      </div>
+    </Sheet>
+  );
+}
+
 export function Toasts() {
   const { toasts, dismiss } = useUI();
   return (

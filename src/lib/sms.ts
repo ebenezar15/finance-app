@@ -6,7 +6,7 @@
  * To add a bank: push a template to TEMPLATES with a `match` regex for the sender/body and an
  * `extract` that returns the fields it is sure about. See README → "Adding an SMS template".
  */
-import { toMinor } from './money';
+import { CURRENCIES, toMinor } from './money';
 
 export interface ParsedAlert {
   amount: number; // minor units
@@ -24,23 +24,42 @@ export interface ParsedAlert {
 
 export const REVIEW_THRESHOLD = 0.75;
 
-const CUR = '(?:INR|Rs\\.?|₹|USD|US\\$|\\$|EUR|€|GBP|£|AED|SGD|S\\$|AUD|A\\$|CAD|C\\$)';
+// Symbols and local abbreviations (case-insensitive); full ISO codes are matched separately, case-sensitively.
+const CUR = '(?:Rs\\.?|₹|US\\$|S\\$|A\\$|C\\$|NZ\\$|HK\\$|R\\$|\\$|€|£|¥|₩|₦|₱|₺|₫|฿|₪|₽|₴|₵|₸|zł|Kč|Ksh|Dhs?|SAR|AED|INR|USD|EUR|GBP)';
 const AMT = '([0-9]{1,3}(?:,[0-9]{2,3})+(?:\\.[0-9]{1,2})?|[0-9]+(?:\\.[0-9]{1,2})?)';
 
 const CUR_MAP: Record<string, string> = {
   inr: 'INR', rs: 'INR', 'rs.': 'INR', '₹': 'INR', usd: 'USD', us$: 'USD', $: 'USD', eur: 'EUR', '€': 'EUR',
-  gbp: 'GBP', '£': 'GBP', aed: 'AED', sgd: 'SGD', s$: 'SGD', aud: 'AUD', a$: 'AUD', cad: 'CAD', c$: 'CAD',
+  gbp: 'GBP', '£': 'GBP', aed: 'AED', dh: 'AED', dhs: 'AED', sar: 'SAR', s$: 'SGD', a$: 'AUD', c$: 'CAD', nz$: 'NZD', hk$: 'HKD',
+  r$: 'BRL', '¥': 'JPY', '₩': 'KRW', '₦': 'NGN', '₱': 'PHP', '₺': 'TRY', '₫': 'VND', '฿': 'THB', '₪': 'ILS', '₽': 'RUB',
+  '₴': 'UAH', '₵': 'GHS', '₸': 'KZT', 'zł': 'PLN', 'kč': 'CZK', ksh: 'KES',
 };
-const normCur = (c: string) => CUR_MAP[c.toLowerCase().replace(/\s/g, '')] ?? 'INR';
+/** A bare "$" or "¥" is ambiguous; callers pass the household currency as the tie-breaker. */
+const normCur = (c: string, fallback: string) => {
+  const k = c.toLowerCase().replace(/\s/g, '');
+  if (/^[A-Z]{3}$/.test(c)) return c;
+  if (k === '$' && fallback.endsWith('D')) return fallback; // USD, CAD, AUD, SGD, NZD, HKD…
+  if (k === '¥' && (fallback === 'CNY' || fallback === 'JPY')) return fallback;
+  return CUR_MAP[k] ?? fallback;
+};
+const ISO = new RegExp(`\\b(${CURRENCIES.join('|')})\\s?${'([0-9]{1,3}(?:,[0-9]{2,3})+(?:\\.[0-9]{1,3})?|[0-9]+(?:\\.[0-9]{1,3})?)'}`);
+const ISO_AFTER = new RegExp(`([0-9]{1,3}(?:,[0-9]{3})+(?:\\.[0-9]{1,3})?|[0-9]+(?:\\.[0-9]{1,3})?)\\s?(${CURRENCIES.join('|')})\\b`);
 
 const DEBIT = /\b(debited|spent|paid|purchase|withdrawn|sent|charged|charge of|you made a|dr\b|debit|txn of|used at|payment of)/i;
 const CREDIT = /\b(credited|received|deposited|refund(?:ed)?|cr\b|credit(?:ed)? to|added to)/i;
 
+let fallbackCurrency = 'USD';
+
+/** Finds the first amount with a currency marker: a symbol, an ISO code before it, or an ISO code after it ("120 SEK"). */
 function amountAfterCurrency(s: string) {
-  const m = new RegExp(`${CUR}\\s?${AMT}`, 'i').exec(s);
-  if (!m) return null;
-  const cur = /^[^\d]+/.exec(m[0])![0].trim();
-  return { amount: toMinor(m[1]), currency: normCur(cur), index: m.index };
+  const hits: { amount: number; currency: string; index: number }[] = [];
+  const sym = new RegExp(`${CUR}\\s?${AMT}`, 'i').exec(s);
+  if (sym) hits.push({ amount: toMinor(sym[1]), currency: normCur(/^[^\d]+/.exec(sym[0])![0].trim(), fallbackCurrency), index: sym.index });
+  const iso = ISO.exec(s);
+  if (iso) hits.push({ amount: toMinor(iso[2]), currency: iso[1], index: iso.index });
+  const after = ISO_AFTER.exec(s);
+  if (after) hits.push({ amount: toMinor(after[1]), currency: after[2], index: after.index });
+  return hits.sort((a, b) => a.index - b.index)[0] ?? null;
 }
 
 const LAST4 = /(?:a\/?c|acct|account|card|ending|xx+|\*+)\s*(?:no\.?\s*)?(?:ending\s*(?:in|with)?\s*)?[x*]*\s?(\d{3,4})\b/i;
@@ -112,7 +131,9 @@ export const TEMPLATES: Template[] = [
 /** Messages that look financial but are not transactions (OTPs, offers, due reminders). */
 const NOISE = /\b(OTP|one time password|verification code|offer|cashback upto|apply now|loan approved|pre-approved|is due|due on|min(?:imum)? amount due|will be debited|requested|request of|declined|failed)\b/i;
 
-export function parseAlert(raw: string): ParsedAlert | null {
+/** `homeCurrency` resolves ambiguous symbols like a bare "$" (USD vs CAD vs AUD…). */
+export function parseAlert(raw: string, homeCurrency = 'USD'): ParsedAlert | null {
+  fallbackCurrency = homeCurrency;
   const s = raw.replace(/\s+/g, ' ').trim();
   if (!s || NOISE.test(s)) return null;
   const base = amountAfterCurrency(s);

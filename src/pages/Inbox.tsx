@@ -162,7 +162,7 @@ function PasteAlert({ data }: { data: Data }) {
   const [accountId, setAccountId] = useState('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [dup, setDup] = useState<string | null>(null);
-  const parsed: ParsedAlert | null = useMemo(() => parseAlert(text), [text]);
+  const parsed: ParsedAlert | null = useMemo(() => parseAlert(text, profile?.currency), [text, profile?.currency]);
   const matched = parsed?.last4 ? data.accounts.find((a) => a.last4 === parsed.last4) : undefined;
   const fallbackAcct = data.accounts.find((a) => a.type === 'bank') ?? data.accounts[0];
   const acctId = accountId || matched?.id || fallbackAcct?.id || '';

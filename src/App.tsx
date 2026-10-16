@@ -3,8 +3,11 @@ import { Route, Routes, useNavigate, useSearchParams } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { LockScreen, useAutoLock } from './components/Lock';
 import { QuickAdd } from './components/QuickAdd';
-import { Toasts } from './components/ui';
-import { purgeTrash } from './db/db';
+import { ConfirmHost, Toasts } from './components/ui';
+import { getSetting, purgeTrash } from './db/db';
+import { seedDemo } from './db/seed';
+import { guessCurrency } from './components/CurrencySelect';
+import { EmbedBanner } from './components/EmbedBanner';
 import { postDueRecurring, useProfile } from './db/hooks';
 import Home from './pages/Home';
 import Onboarding from './pages/Onboarding';
@@ -60,6 +63,12 @@ export default function App() {
     purgeTrash().catch(console.error);
   }, [profile?.onboarded]);
 
+  // Shared link: open straight into the demo household (in the viewer's local currency) unless they chose to start fresh.
+  useEffect(() => {
+    if (import.meta.env.VITE_EMBED !== '1' || !profile || profile.onboarded) return;
+    getSetting('skipDemo', false).then((skip) => { if (!skip) seedDemo(guessCurrency()); });
+  }, [profile]);
+
   // PWA shortcut: /?add=1 opens the quick-add sheet straight away.
   useEffect(() => {
     if (params.get('add') === '1') { openQuickAdd(); nav('/', { replace: true }); }
@@ -71,6 +80,7 @@ export default function App() {
 
   return (
     <Layout>
+      <EmbedBanner />
       <Suspense fallback={<div className="h-64 animate-pulse rounded-3xl bg-sunk/60 mt-6" />}>
         <Routes>
           <Route path="/" element={<Home />} />
@@ -89,6 +99,7 @@ export default function App() {
       </Suspense>
       <QuickAdd />
       <Toasts />
+      <ConfirmHost />
     </Layout>
   );
 }

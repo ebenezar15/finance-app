@@ -4,6 +4,7 @@
  */
 import type { Budget, Category, Goal, Loan, Minor, RecurringRule, Transaction } from '../db/types';
 import { DAY, addDays, addMonths, daysInMonth, isoDate, monthKey, monthsBetween, startOfMonth } from './dates';
+import { APP_LOCALE } from './locale';
 
 const live = (t: Transaction) => !t.deletedAt;
 
@@ -472,7 +473,7 @@ export function monthlySeries(txs: Transaction[], now: Date, months: number) {
     const d = addMonths(startOfMonth(now), k - months + 1);
     const mk = monthKey(d);
     const tot = monthTotals(txs, mk);
-    return { month: mk, label: d.toLocaleDateString(undefined, { month: 'short' }), ...tot };
+    return { month: mk, label: d.toLocaleDateString(APP_LOCALE, { month: 'short' }), ...tot };
   });
 }
 

@@ -28,4 +28,25 @@ describe('money', () => {
     expect(formatMoney(-5000, 'USD')).toBe('−$50');
     expect(formatMoney(250000000, 'INR', { compact: true })).toBe('₹25L');
   });
+  it('works for any ISO currency with its own decimals', async () => {
+    const { CURRENCIES, currencyDigits, currencyName, isCurrency } = await import('../money');
+    expect(CURRENCIES.length).toBeGreaterThan(100);
+    expect(formatMoney(123456, 'JPY')).toMatch(/1,235|1,234/); // JPY has no minor unit
+    expect(currencyDigits('JPY')).toBe(0);
+    expect(currencyDigits('KWD')).toBe(3);
+    expect(formatMoney(125050, 'KWD')).toContain('1,250.500');
+    expect(formatMoney(99900, 'NGN')).toContain('999');
+    expect(formatMoney(150000, 'BRL')).toContain('1.500');
+    for (const c of CURRENCIES) expect(formatMoney(123456, c)).toMatch(/\d/);
+    expect(currencyName('EUR', 'en')).toBe('Euro');
+    expect(isCurrency('SEK')).toBe(true);
+    expect(isCurrency('UPI1')).toBe(false);
+  });
+  it('accepts amounts typed with any symbol or code', () => {
+    expect(toMinor('€12.50')).toBe(1250);
+    expect(toMinor('CHF 9.50')).toBe(950);
+    expect(evalAmount('¥1200+300')).toBe(1500);
+    expect(evalAmount('kr 100')).toBe(100);
+    expect(evalAmount('R$ 25,00'.replace(',', '.'))).toBe(25);
+  });
 });

@@ -8,6 +8,7 @@ import type { Freq, Minor, RecurringRule } from '../db/types';
 import { addDays, addMonths, daysInMonth, endOfMonth, isoDate, monthKey, monthLabel, monthsBetween, relativeDay, startOfMonth } from '../lib/dates';
 import { detectSubscriptions, occurrences, upcomingBills, yearlyCost, type Upcoming } from '../lib/finance';
 import { evalAmount, formatMoney, toMajor, toMinor } from '../lib/money';
+import { APP_LOCALE } from '../lib/locale';
 
 /* ───────────────────────── Shared bits ───────────────────────── */
 
@@ -55,7 +56,7 @@ function RuleAmount({ r, className = '' }: { r: RecurringRule; className?: strin
 function DateTile({ d }: { d: Date }) {
   return (
     <div className="w-11 text-center shrink-0 rounded-xl bg-sunk py-1" aria-hidden>
-      <p className="text-[10px] font-bold text-muted">{d.toLocaleDateString(undefined, { month: 'short' })}</p>
+      <p className="text-[10px] font-bold text-muted">{d.toLocaleDateString(APP_LOCALE, { month: 'short' })}</p>
       <p className="text-[17px] font-extrabold leading-none num">{d.getDate()}</p>
     </div>
   );
@@ -214,7 +215,7 @@ function CalendarPanel({ data, now }: { data: Data; now: Date }) {
   return (
     <section className="panel overflow-hidden">
       <div className="grid grid-cols-3 gap-3 sm:gap-4 p-5 border-b border-line/70">
-        <Stat label={`Due in ${viewMonth.toLocaleDateString(undefined, { month: 'long' })}`} value={<Money value={due} />}
+        <Stat label={`Due in ${viewMonth.toLocaleDateString(APP_LOCALE, { month: 'long' })}`} value={<Money value={due} />}
           hint={incomeDue ? <>Income expected <Money value={incomeDue} className="text-good font-semibold" /></> : undefined} />
         <Stat label="Already paid" value={<Money value={paid} className="text-good" />} hint={due ? `${Math.min(100, Math.round((paid / due) * 100))}% of the month’s bills` : undefined} />
         <Stat label="Still to pay" value={<Money value={still} />} hint={offset === 0 ? 'Before the month ends' : offset < 0 ? 'Past month' : 'Planned'} />
@@ -249,7 +250,7 @@ function CalendarPanel({ data, now }: { data: Data; now: Date }) {
               const isToday = k === today;
               const isSel = k === selected;
               const label = [
-                d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }),
+                d.toLocaleDateString(APP_LOCALE, { weekday: 'long', day: 'numeric', month: 'long' }),
                 isToday ? 'today' : '',
                 bills.length ? `${bills.length} bill${bills.length > 1 ? 's' : ''} totalling ${fmt(bills.reduce((s, b) => s + b.rule.amount, 0))}` : '',
                 inc.length ? `${inc.length} income` : '',
@@ -288,7 +289,7 @@ function CalendarPanel({ data, now }: { data: Data; now: Date }) {
 
         <div className="border-t lg:border-t-0 lg:border-l border-line/70 p-5 space-y-6">
           <div aria-live="polite">
-            <h2 className="h2 mb-2">{relativeDay(sel.toISOString(), now) === 'Today' ? 'Today' : sel.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</h2>
+            <h2 className="h2 mb-2">{relativeDay(sel.toISOString(), now) === 'Today' ? 'Today' : sel.toLocaleDateString(APP_LOCALE, { weekday: 'long', day: 'numeric', month: 'long' })}</h2>
             {dayItems.length === 0 ? <p className="sub">Nothing due on this day.</p> : (
               <ul className="space-y-2">
                 {dayItems.map((x) => (

@@ -10,6 +10,7 @@ import { addMonths, daysInMonth, isoDate, monthKey, startOfMonth } from '../lib/
 import { goalPlan, spendByCategory, spendLines } from '../lib/finance';
 import { evalAmount, toMinor } from '../lib/money';
 import { useUI } from '../store/ui';
+import { APP_LOCALE } from '../lib/locale';
 
 const tipStyle = { background: 'rgb(var(--surface))', borderRadius: 12, border: '1px solid rgb(var(--line))', fontSize: 13 };
 
@@ -18,7 +19,7 @@ const localDate = (s: string) => {
   const [y, m, d] = s.slice(0, 10).split('-').map(Number);
   return new Date(y, (m || 1) - 1, d || 1);
 };
-const monthYear = (d: Date) => d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+const monthYear = (d: Date) => d.toLocaleDateString(APP_LOCALE, { month: 'short', year: 'numeric' });
 const parseAmount = (s: string) => {
   const v = evalAmount(s);
   return v === null ? null : toMinor(v);
@@ -39,11 +40,14 @@ function projection(goal: Goal, monthly: number, now: Date, minMonths = 0) {
   const horizon = Math.min(120, Math.max(3, minMonths, plan.monthsLeft, c ? c.months + 1 : plan.monthsLeft + 6));
   return Array.from({ length: horizon + 1 }, (_, k) => ({
     k,
-    label: addMonths(now, k).toLocaleDateString(undefined, { month: 'short', year: '2-digit' }),
+    label: addMonths(now, k).toLocaleDateString(APP_LOCALE, { month: 'short', year: '2-digit' }),
     pace: Math.min(goal.target, goal.saved + monthly * k),
     needed: k <= plan.monthsLeft ? Math.min(goal.target, goal.saved + plan.needed * k) : null,
   }));
 }
+
+/** Rough size of one unit of each currency vs USD, for picking a round-up step. */
+const SCALE_HINT: Record<string, number> = { INR: 30, JPY: 150, KRW: 1300, IDR: 15000, VND: 24000, NGN: 700, KES: 130, PKR: 140, HUF: 360, CLP: 900, COP: 4000, ARS: 900, PHP: 56, THB: 35, RUB: 90, TWD: 32, LKR: 150, BDT: 60, NPR: 50, ISK: 135, EGP: 30, CZK: 23, TRY: 30, UAH: 40 };
 
 export default function Goals() {
   const data = useData();
@@ -207,7 +211,7 @@ function GoalDetail({ goal, data, currency, onClose, onEdit }: { goal: Goal; dat
 
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()} title={`${goal.emoji} ${goal.name}`} wide
-      description={member ? `${member.name}’s savings jar` : `Target ${fmt(goal.target)} by ${target.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}`}>
+      description={member ? `${member.name}’s savings jar` : `Target ${fmt(goal.target)} by ${target.toLocaleDateString(APP_LOCALE, { day: 'numeric', month: 'long', year: 'numeric' })}`}>
       <div className="space-y-5">
         {(celebrate || p.progress >= 1) && (
           <div className="animate-pop rounded-2xl bg-good/10 p-4 flex items-center gap-3" role="status">
@@ -306,7 +310,7 @@ function GoalDetail({ goal, data, currency, onClose, onEdit }: { goal: Goal; dat
               <summary className="cursor-pointer font-semibold text-muted">Contribution history ({goal.contributions.length})</summary>
               <ul className="mt-2 divide-y divide-line/70">
                 {[...goal.contributions].reverse().slice(0, 12).map((c, i) => (
-                  <li key={i} className="flex justify-between py-2"><span>{localDate(c.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}</span><Money value={c.amount} className="font-semibold" /></li>
+                  <li key={i} className="flex justify-between py-2"><span>{localDate(c.date).toLocaleDateString(APP_LOCALE, { day: 'numeric', month: 'short', year: 'numeric' })}</span><Money value={c.amount} className="font-semibold" /></li>
                 ))}
               </ul>
             </details>
@@ -499,7 +503,8 @@ function Challenges({ data, now, currency }: { data: Data; now: Date; currency: 
   }, [data.txs, data.categories, mk, dim, today]);
 
   const roundUps = useMemo(() => {
-    const unit = (currency === 'INR' || currency === 'JPY' ? 10 : 1) * 100;
+    // Round up to a sensible "coin" for the currency: 1 for USD/EUR, 10 for INR/JPY-sized units, etc.
+    const unit = Math.max(1, Math.pow(10, Math.round(Math.log10(Math.max(1, SCALE_HINT[currency] ?? 1)) - 0.3))) * 100;
     let total = 0, n = 0;
     for (const t of data.txs) {
       if (t.type !== 'expense' || monthKey(t.date) !== mk) continue;

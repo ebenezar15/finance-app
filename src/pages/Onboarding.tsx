@@ -5,7 +5,9 @@ import { saveProfile } from '../db/hooks';
 import { DEFAULT_CATEGORIES, PALETTE, defaultProfile, seedDemo } from '../db/seed';
 import type { Account, BudgetStyle, Member, Role } from '../db/types';
 import { fiftyThirtyTwenty } from '../lib/finance';
-import { CURRENCIES, formatMoney, toMinor } from '../lib/money';
+import { CurrencySelect, guessCurrency } from '../components/CurrencySelect';
+import { formatMoney, toMinor } from '../lib/money';
+import iconUrl from '../assets/icon.svg';
 
 const STYLES: { id: BudgetStyle; name: string; body: string }[] = [
   { id: 'envelope', name: 'Envelopes', body: 'Give each category a monthly amount. Unused money can roll over.' },
@@ -20,9 +22,7 @@ const STEPS = ['You', 'Household', 'Money', 'Style', 'Goals'];
 const SHARE: Record<string, number> = { housing: 0.28, groceries: 0.1, utilities: 0.05, transport: 0.06, health: 0.03, dining: 0.05, shopping: 0.05, entertainment: 0.03, subscriptions: 0.01, gifts: 0.02 };
 
 export default function Onboarding() {
-  const guessCur = (() => {
-    try { const c = new Intl.NumberFormat(navigator.language, { style: 'currency', currency: 'USD' }).resolvedOptions().locale; return c.endsWith('IN') ? 'INR' : c.endsWith('GB') ? 'GBP' : /DE|FR|ES|IT|NL|IE/.test(c) ? 'EUR' : 'USD'; } catch { return 'USD'; }
-  })();
+  const guessCur = guessCurrency();
   const [step, setStep] = useState(-1);
   const [name, setName] = useState('');
   const [members, setMembers] = useState<{ name: string; role: Role }[]>([]);
@@ -79,7 +79,7 @@ export default function Onboarding() {
       <div className="min-h-screen bg-bg grid lg:grid-cols-[1.1fr_1fr]">
         <div className="relative overflow-hidden bg-primary text-onprimary p-8 md:p-14 flex flex-col justify-between min-h-[46vh]">
           <WelcomeArt />
-          <div className="relative flex items-center gap-2.5"><img src="/icon.svg" alt="" className="h-9 w-9 rounded-xl ring-1 ring-white/20" /><span className="text-xl font-extrabold tracking-tight">Tandem</span></div>
+          <div className="relative flex items-center gap-2.5"><img src={iconUrl} alt="" className="h-9 w-9 rounded-xl ring-1 ring-white/20" /><span className="text-xl font-extrabold tracking-tight">Tandem</span></div>
           <div className="relative max-w-lg">
             <h1 className="text-[40px] md:text-[56px] font-extrabold tracking-[-0.04em] leading-[0.98]">Run the household’s money together.</h1>
             <p className="mt-4 text-[17px] opacity-80 max-w-md">Budgets, bills, goals and the whole family’s spending in one place. Private by default — your data never leaves this device unless you turn on sync.</p>
@@ -91,7 +91,7 @@ export default function Onboarding() {
           <button className="btn-primary h-14 text-base" onClick={() => setStep(0)}>Set up my household</button>
           <button className="btn-soft h-14 text-base" onClick={demo} disabled={busy}><Sparkles size={18} /> {busy ? 'Building a demo family…' : 'Explore with demo data'}</button>
           <label className="mt-2 flex items-center gap-3 text-sm text-muted">Currency
-            <select className="field h-10 w-28" value={currency} onChange={(e) => setCurrency(e.target.value)}>{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</select>
+            <CurrencySelect className="field h-10 flex-1 min-w-0" value={currency} onChange={setCurrency} />
           </label>
           <p className="text-xs text-muted">Works offline. No accounts, no ads, no trackers.</p>
         </div>
@@ -137,7 +137,7 @@ export default function Onboarding() {
             <h1 className="h1">A rough picture of your money</h1>
             <p className="sub -mt-3">Ballpark numbers are fine — they set up your starter budget.</p>
             <label className="block"><span className="label">Currency</span>
-              <select className="field" value={currency} onChange={(e) => setCurrency(e.target.value)}>{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</select></label>
+              <CurrencySelect value={currency} onChange={setCurrency} /></label>
             <label className="block"><span className="label">Household take-home pay per month</span>
               <input inputMode="decimal" className="field num" value={income} onChange={(e) => setIncome(e.target.value)} placeholder="e.g. 6500" />
               {income && <span className="text-xs text-muted num">{sample(income)} a month</span>}</label>

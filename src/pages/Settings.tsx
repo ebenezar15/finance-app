@@ -11,10 +11,12 @@ import type { BudgetStyle, Profile } from '../db/types';
 import { hashPin, type Envelope } from '../lib/crypto';
 import { toCSV } from '../lib/csv';
 import { isoDate } from '../lib/dates';
-import { CURRENCIES } from '../lib/money';
-import { useUI, type Theme } from '../store/ui';
+import { CurrencySelect } from '../components/CurrencySelect';
+import { saveFile } from '../lib/download';
+import { askConfirm, useUI, type Theme } from '../store/ui';
+import { APP_LOCALE } from '../lib/locale';
 
-const MONTHS = Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleDateString(undefined, { month: 'long' }));
+const MONTHS = Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleDateString(APP_LOCALE, { month: 'long' }));
 const STYLES: { value: BudgetStyle; label: string }[] = [
   { value: 'envelope', label: 'Envelopes (a set amount per category)' },
   { value: 'zero-based', label: 'Zero-based (give every unit a job)' },
@@ -29,12 +31,7 @@ interface Online { prices: boolean; ai: boolean; aiKey?: string }
 
 const toast = (t: string) => useUI.getState().toast(t);
 
-function download(name: string, blob: Blob) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = name; a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
-}
+const download = (name: string, blob: Blob) => saveFile(name, blob);
 
 function Toggle({ checked, onChange, label, hint, id }: { checked: boolean; onChange: (v: boolean) => void; label: ReactNode; hint?: ReactNode; id: string }) {
   return (
@@ -97,9 +94,7 @@ function ProfilePanel({ profile }: { profile: Profile }) {
         <div><label className="label" htmlFor="s-name">Your name</label><input id="s-name" className="field" value={p.primaryUser} onChange={(e) => setP({ ...p, primaryUser: e.target.value })} /></div>
         <div>
           <label className="label" htmlFor="s-cur">Currency</label>
-          <select id="s-cur" className="field" value={p.currency} onChange={(e) => setP({ ...p, currency: e.target.value })}>
-            {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
+          <CurrencySelect id="s-cur" value={p.currency} onChange={(c) => setP({ ...p, currency: c })} />
           <p className="text-xs text-muted mt-1">Changes how amounts are shown. Existing amounts are not converted.</p>
         </div>
         <div>
@@ -181,7 +176,7 @@ function Security() {
       ) : (
         <div className="flex flex-wrap gap-2 mt-4">
           <button className="btn-primary" onClick={() => setEditing(true)}><KeyRound size={16} /> {pin ? 'Change PIN' : 'Set a PIN'}</button>
-          {pin && <button className="btn-soft" onClick={async () => { if (window.confirm('Remove the PIN? Anyone with this device could then open Tandem.')) { await db.settings.delete('pin'); toast('PIN removed'); } }}>Remove PIN</button>}
+          {pin && <button className="btn-soft" onClick={async () => { if (await askConfirm('Remove the PIN? Anyone with this device could then open Tandem.', 'Remove PIN')) { await db.settings.delete('pin'); toast('PIN removed'); } }}>Remove PIN</button>}
           {pin && <button className="btn-soft" onClick={() => useUI.getState().setLocked(true)}><Lock size={16} /> Lock now</button>}
         </div>
       )}
@@ -231,7 +226,7 @@ function Backup({ currency }: { currency: string }) {
 
   const doRestore = async () => {
     if (!file || !rp) return setRErr('Choose a file and enter its passphrase.');
-    if (!window.confirm('Restoring replaces all the data on this device with the backup. Continue?')) return;
+    if (!(await askConfirm('Restoring replaces all the data on this device with the backup.', 'Replace my data'))) return;
     setRErr(''); setBusy(true);
     try {
       const env = JSON.parse(await file.text()) as Envelope;
@@ -255,14 +250,14 @@ function Backup({ currency }: { currency: string }) {
   };
 
   const exportJSON = async () => {
-    if (!window.confirm('This file is not encrypted. Anyone who gets it can read all your financial data. Download anyway?')) return;
+    if (!(await askConfirm('This file is not encrypted. Anyone who gets it can read all your financial data.', 'Download anyway'))) return;
     download(`tandem-copy-${isoDate(new Date())}.json`, new Blob([JSON.stringify(await snapshot(), null, 2)], { type: 'application/json' }));
   };
 
   return (
     <Panel title="Data and backup">
       <p className={`text-sm rounded-2xl p-3 ${stale ? 'bg-warn/10' : 'bg-sunk/60'}`}>
-        {last ? <>Last backup: <b>{new Date(last).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</b>.</> : 'No backup yet.'}
+        {last ? <>Last backup: <b>{new Date(last).toLocaleString(APP_LOCALE, { dateStyle: 'medium', timeStyle: 'short' })}</b>.</> : 'No backup yet.'}
         {stale && ' Your data lives only on this device, so a fresh backup is a good idea.'}
       </p>
 
@@ -277,7 +272,7 @@ function Backup({ currency }: { currency: string }) {
 
       <h3 className="font-bold text-sm mt-6">Restore from backup</h3>
       <form className="grid sm:grid-cols-2 gap-3 mt-3" onSubmit={(e) => { e.preventDefault(); doRestore(); }}>
-        <div><label className="label" htmlFor="rs-file">Backup file</label><input id="rs-file" className="field pt-2" type="file" accept=".tandem,application/json" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></div>
+        <div><label className="label" htmlFor="rs-file">Backup file</label><input id="rs-file" className="field pt-2" type="file" accept=".tandem,.json,application/json" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></div>
         <div><label className="label" htmlFor="rs-pass">Passphrase</label><input id="rs-pass" className="field" type="password" autoComplete="current-password" value={rp} onChange={(e) => setRp(e.target.value)} /></div>
         {rErr && <p className="text-sm text-bad font-semibold sm:col-span-2" role="alert">{rErr}</p>}
         <div className="sm:col-span-2"><button type="submit" className="btn-soft" disabled={busy}><Upload size={16} /> Restore from backup</button></div>
@@ -302,7 +297,7 @@ function DemoData({ currency }: { currency: string }) {
     <Panel title="Demo data">
       <p className="sub">Try Tandem with a sample family of four and a year of entries.</p>
       <button className="btn-soft mt-3" disabled={busy} onClick={async () => {
-        if (!window.confirm('Loading the demo family replaces all the data on this device. Continue?')) return;
+        if (!(await askConfirm('Loading the demo family replaces all the data on this device.', 'Load demo family'))) return;
         setBusy(true);
         await wipeAll();
         await seedDemo(currency);

@@ -10,6 +10,7 @@ import type { BudgetStyle, Minor, Need, Transaction } from '../db/types';
 import { addMonths, daysInMonth, isoDate, monthKey, monthLabel, startOfMonth } from '../lib/dates';
 import { budgetStatus, fiftyThirtyTwenty, monthTotals, occurrences, spendByCategory, type BudgetStatus } from '../lib/finance';
 import { evalAmount, toMajor, toMinor } from '../lib/money';
+import { APP_LOCALE } from '../lib/locale';
 
 /* ───────────────────────── Shared bits ───────────────────────── */
 
@@ -418,7 +419,7 @@ function CapsPanel({ statuses, data, month, onAdd }: { statuses: BudgetStatus[];
 function categoryHistory(txs: Transaction[], categoryId: string, now: Date, months: number, memberId?: string) {
   return Array.from({ length: months }, (_, k) => {
     const d = addMonths(startOfMonth(now), k - months + 1);
-    return { label: d.toLocaleDateString(undefined, { month: 'short' }), spent: spendByCategory(txs, monthKey(d), memberId).get(categoryId) ?? 0 };
+    return { label: d.toLocaleDateString(APP_LOCALE, { month: 'short' }), spent: spendByCategory(txs, monthKey(d), memberId).get(categoryId) ?? 0 };
   });
 }
 
@@ -654,7 +655,7 @@ function EventsPanel({ data }: { data: Data }) {
                     <div className="flex-1 min-w-0">
                       <p className="font-bold truncate">{ev.name}</p>
                       <p className="text-xs text-muted">
-                        {new Date(ev.start).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} to {new Date(ev.end).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })} · {status}
+                        {new Date(ev.start).toLocaleDateString(APP_LOCALE, { day: 'numeric', month: 'short' })} to {new Date(ev.end).toLocaleDateString(APP_LOCALE, { day: 'numeric', month: 'short', year: 'numeric' })} · {status}
                       </p>
                     </div>
                     <p className={`text-sm num font-bold text-right ${over ? 'text-bad' : ''}`}>

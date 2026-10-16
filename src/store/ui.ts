@@ -1,11 +1,22 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
+
+/** localStorage can throw (private mode, blocked storage, sandboxed frames); fall back to memory. */
+const mem = new Map<string, string>();
+const safeStorage = createJSONStorage(() => ({
+  getItem: (k: string) => { try { return localStorage.getItem(k); } catch { return mem.get(k) ?? null; } },
+  setItem: (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { mem.set(k, v); } },
+  removeItem: (k: string) => { try { localStorage.removeItem(k); } catch { mem.delete(k); } },
+}));
 
 export type Theme = 'system' | 'light' | 'dark' | 'contrast';
 
 interface Toast { id: number; text: string; undo?: () => void | Promise<void> }
 
+interface ConfirmRequest { message: string; action: string; danger?: boolean; resolve: (ok: boolean) => void }
+
 interface UI {
+  confirmReq: ConfirmRequest | null;
   theme: Theme;
   accent: string;
   hideAmounts: boolean;
@@ -37,6 +48,7 @@ export const useUI = create<UI>()(
       quickAdd: { open: false },
       toasts: [],
       locked: false,
+      confirmReq: null,
       setTheme: (theme) => set({ theme }),
       setAccent: (accent) => set({ accent }),
       toggleHide: () => set((s) => ({ hideAmounts: !s.hideAmounts })),
@@ -51,6 +63,14 @@ export const useUI = create<UI>()(
       dismiss: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
       setLocked: (locked) => set({ locked }),
     }),
-    { name: 'tandem-ui', partialize: (s) => ({ theme: s.theme, accent: s.accent, hideAmounts: s.hideAmounts, viewAs: s.viewAs }) },
+    { name: 'tandem-ui', storage: safeStorage, partialize: (s) => ({ theme: s.theme, accent: s.accent, hideAmounts: s.hideAmounts, viewAs: s.viewAs }) },
   ),
 );
+
+/**
+ * In-app replacement for window.confirm(), which some hosts (embedded frames, app views)
+ * suppress. Resolves true only when the person presses the action button.
+ */
+export function askConfirm(message: string, action = 'Continue', danger = true): Promise<boolean> {
+  return new Promise((resolve) => useUI.setState({ confirmReq: { message, action, danger, resolve } }));
+}

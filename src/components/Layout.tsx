@@ -6,6 +6,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useData, useProfile } from '../db/hooks';
 import { useUI } from '../store/ui';
 import { Avatar, Sheet } from './ui';
+import iconUrl from '../assets/icon.svg';
 
 export const NAV = [
   { to: '/', label: 'Home', icon: Home, end: true },
@@ -56,7 +57,7 @@ export function Layout({ children }: { children: ReactNode }) {
       {/* Sidebar — tablet & desktop */}
       <aside className="hidden md:flex flex-col w-[248px] shrink-0 h-screen sticky top-0 border-r border-line/70 px-4 py-5 gap-1">
         <div className="flex items-center gap-2.5 px-2 mb-5">
-          <img src="/icon.svg" alt="" className="h-8 w-8 rounded-[10px]" />
+          <img src={iconUrl} alt="" className="h-8 w-8 rounded-[10px]" />
           <span className="text-[19px] font-extrabold tracking-tight">{profile?.appName ?? 'Tandem'}</span>
         </div>
         <button className="btn-primary mb-4 justify-start" onClick={() => openQuickAdd()}>
@@ -82,7 +83,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <div className="flex-1 min-w-0">
         {/* Mobile top bar */}
         <header className="md:hidden sticky top-0 z-30 bg-bg/85 backdrop-blur-md flex items-center gap-2 px-4 h-14 pt-[env(safe-area-inset-top)]">
-          <img src="/icon.svg" alt="" className="h-7 w-7 rounded-[9px]" />
+          <img src={iconUrl} alt="" className="h-7 w-7 rounded-[9px]" />
           <span className="font-extrabold tracking-tight text-[17px]">{profile?.appName ?? 'Tandem'}</span>
           <div className="ml-auto flex items-center gap-1">
             <button className="btn-ghost h-10 w-10 p-0" aria-label="Search" onClick={() => nav('/activity?focus=1')}><Search size={19} /></button>

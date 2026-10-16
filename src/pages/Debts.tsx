@@ -12,13 +12,14 @@ import { addMonths, isoDate } from '../lib/dates';
 import { emi, payoffPlan, simulatePrepayment, type AmortRow, type DebtPlanItem } from '../lib/finance';
 import { evalAmount, toMinor } from '../lib/money';
 import { useUI } from '../store/ui';
+import { APP_LOCALE } from '../lib/locale';
 
 const tipStyle = { background: 'rgb(var(--surface))', borderRadius: 12, border: '1px solid rgb(var(--line))', fontSize: 13 };
 const localDate = (s: string) => {
   const [y, m, d] = s.slice(0, 10).split('-').map(Number);
   return new Date(y, (m || 1) - 1, d || 1);
 };
-const monthYear = (s: string | Date) => (typeof s === 'string' ? localDate(s) : s).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+const monthYear = (s: string | Date) => (typeof s === 'string' ? localDate(s) : s).toLocaleDateString(APP_LOCALE, { month: 'short', year: 'numeric' });
 const parseAmount = (s: string) => {
   const v = evalAmount(s);
   return v === null ? null : toMinor(v);
@@ -244,7 +245,7 @@ function LoanDetail({ l, onClose, onEdit }: { l: LoanOut; onClose: () => void; o
                     </tr>
                     {expanded === y.year && y.rows.map((r) => (
                       <tr key={r.n} className="text-xs text-muted bg-sunk/50">
-                        <td className="py-1.5 px-1 pl-6">{localDate(r.date).toLocaleDateString(undefined, { month: 'short' })}{r.prepay > 0 && <span className="ml-1 text-good font-semibold">+ prepaid</span>}</td>
+                        <td className="py-1.5 px-1 pl-6">{localDate(r.date).toLocaleDateString(APP_LOCALE, { month: 'short' })}{r.prepay > 0 && <span className="ml-1 text-good font-semibold">+ prepaid</span>}</td>
                         <td className="py-1.5 px-1 text-right money">{fmt(r.principal + r.prepay)}</td>
                         <td className="py-1.5 px-1 text-right money">{fmt(r.interest)}</td>
                         <td className="py-1.5 px-1 text-right money">{fmt(r.balance)}</td>
@@ -521,7 +522,7 @@ function Ious({ data }: { data: Data }) {
       <span className="h-9 w-9 rounded-full bg-sunk grid place-items-center font-bold text-sm shrink-0" aria-hidden>{i.person.slice(0, 1)}</span>
       <div className="min-w-0 flex-1">
         <p className="font-semibold text-sm truncate">{i.person}</p>
-        <p className="text-xs text-muted truncate">{i.note || 'No note'} · {localDate(i.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</p>
+        <p className="text-xs text-muted truncate">{i.note || 'No note'} · {localDate(i.date).toLocaleDateString(APP_LOCALE, { day: 'numeric', month: 'short' })}</p>
       </div>
       <Money value={Math.abs(i.amount)} className="font-bold text-sm" />
       <div className="flex">

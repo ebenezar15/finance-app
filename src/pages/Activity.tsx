@@ -10,6 +10,8 @@ import { toCSV } from '../lib/csv';
 import { isoDate, monthKey, monthLabel, relativeDay } from '../lib/dates';
 import { evalAmount, formatMoney, toMinor } from '../lib/money';
 import { useUI } from '../store/ui';
+import { APP_LOCALE } from '../lib/locale';
+import { saveFile } from '../lib/download';
 
 const PAGE = 150;
 
@@ -187,7 +189,7 @@ function ActivityList({ data }: { data: Data }) {
     await softDelete(ids);
   }
 
-  function exportCSV() {
+  async function exportCSV() {
     const rows: (string | number)[][] = [['Date', 'Type', 'Payee', 'Category', 'Account', 'To account', 'Member', 'Amount', 'Currency', 'Source', 'Tags', 'Notes', 'Needs review']];
     for (const t of filtered) {
       rows.push([
@@ -198,14 +200,7 @@ function ActivityList({ data }: { data: Data }) {
       ]);
     }
     const blob = new Blob([toCSV(rows)], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `tandem-activity-${f.month || 'all'}-${isoDate(new Date())}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    if (!(await saveFile(`tandem-activity-${f.month || 'all'}-${isoDate(new Date())}.csv`, blob))) return;
     toast(`Exported ${filtered.length} ${filtered.length === 1 ? 'entry' : 'entries'}`);
   }
 
@@ -307,7 +302,7 @@ function ActivityList({ data }: { data: Data }) {
 
       {/* Summary strip */}
       <section className="panel px-5 py-4 grid grid-cols-3 gap-4" aria-label="Summary of matching entries">
-        <SummaryItem label="Entries"><span className="num">{filtered.length.toLocaleString()}</span></SummaryItem>
+        <SummaryItem label="Entries"><span className="num">{filtered.length.toLocaleString(APP_LOCALE)}</span></SummaryItem>
         <SummaryItem label="Total out"><Money value={summary.out} /></SummaryItem>
         <SummaryItem label="Total in"><span className="text-good"><Money value={summary.inn} /></span></SummaryItem>
       </section>
@@ -348,7 +343,7 @@ function ActivityList({ data }: { data: Data }) {
           {groups.map((g) => (
             <div key={g.day}>
               <h3 className="sticky top-14 md:top-0 z-10 flex items-center justify-between gap-3 px-5 py-2 bg-sunk/95 backdrop-blur text-[13px] font-bold border-b border-line/70">
-                <span>{relativeDay(g.day + 'T12:00:00')}{' '}<span className="font-semibold text-muted">· {new Date(g.day + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long' })}</span></span>
+                <span>{relativeDay(g.day + 'T12:00:00')}{' '}<span className="font-semibold text-muted">· {new Date(g.day + 'T12:00:00').toLocaleDateString(APP_LOCALE, { weekday: 'long' })}</span></span>
                 <span className="text-muted font-semibold">Net <span className={`money num ${g.net > 0 ? 'text-good' : 'text-ink'}`}>{fmt(g.net, { sign: true })}</span></span>
               </h3>
               <ul className="divide-y divide-line/60">
@@ -364,7 +359,7 @@ function ActivityList({ data }: { data: Data }) {
           {filtered.length > limit && (
             <div className="p-4 text-center border-t border-line/70">
               <button className="btn-soft" onClick={() => setLimit((l) => l + PAGE)}>Show more</button>
-              <p className="text-xs text-muted mt-2 num">Showing {limit.toLocaleString()} of {filtered.length.toLocaleString()}</p>
+              <p className="text-xs text-muted mt-2 num">Showing {limit.toLocaleString(APP_LOCALE)} of {filtered.length.toLocaleString(APP_LOCALE)}</p>
             </div>
           )}
         </section>
@@ -485,7 +480,7 @@ function EditSheet({ tx, data, onClose }: { tx: Transaction; data: Data; onClose
 
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()} title="Edit entry"
-      description={`${SOURCE_LABEL[tx.source] ?? tx.source} · added ${new Date(tx.createdAt).toLocaleDateString()}`}>
+      description={`${SOURCE_LABEL[tx.source] ?? tx.source} · added ${new Date(tx.createdAt).toLocaleDateString(APP_LOCALE)}`}>
       <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); save(); }}>
         <Segmented label="Entry type" value={type} onChange={setType}
           options={[{ value: 'expense', label: 'Expense' }, { value: 'income', label: 'Income' }, { value: 'transfer', label: 'Transfer' }, { value: 'refund', label: 'Refund' }]} />

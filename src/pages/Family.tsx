@@ -11,7 +11,8 @@ import type { AgeGroup, Member, Role } from '../db/types';
 import { isoDate, monthKey, monthLabel } from '../lib/dates';
 import { spendByCategory } from '../lib/finance';
 import { splitEvenly, toMinor } from '../lib/money';
-import { useUI } from '../store/ui';
+import { askConfirm, useUI } from '../store/ui';
+import { APP_LOCALE } from '../lib/locale';
 
 const tooltipStyle = { background: 'rgb(var(--surface))', borderRadius: 12, border: '1px solid rgb(var(--line))', fontSize: 13 };
 
@@ -50,7 +51,7 @@ function FamilyView({ data, currency }: { data: Data; currency: string }) {
 
   const remove = async (m: Member) => {
     if (m.role === 'owner') return;
-    if (!window.confirm(`Remove ${m.name} from the household? Their past entries stay in Activity.`)) return;
+    if (!(await askConfirm(`Remove ${m.name} from the household? Their past entries stay in Activity.`, `Remove ${m.name}`))) return;
     await db.members.delete(m.id);
     useUI.getState().toast(`${m.name} removed`, async () => { await db.members.put(m); });
   };
@@ -266,7 +267,7 @@ function PocketMoney({ m, data, currency, mk }: { m: Member; data: Data; currenc
         <div>
           <p className="text-[13px] font-semibold text-muted">Monthly allowance</p>
           {m.allowance ? <Money value={m.allowance} className="text-2xl font-extrabold" /> : <p className="text-sm text-muted">Not set. Edit {m.name} to add one.</p>}
-          {paidThisMonth && <p className="text-xs text-good font-semibold mt-0.5 flex items-center gap-1"><Check size={13} /> Paid on {new Date(paidThisMonth.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</p>}
+          {paidThisMonth && <p className="text-xs text-good font-semibold mt-0.5 flex items-center gap-1"><Check size={13} /> Paid on {new Date(paidThisMonth.date).toLocaleDateString(APP_LOCALE, { day: 'numeric', month: 'short' })}</p>}
         </div>
         <button className="btn-primary" disabled={!m.allowance} onClick={() => pay(m.allowance!, `Pocket money — ${m.name}`)}><HandCoins size={17} /> Pay allowance now</button>
       </div>

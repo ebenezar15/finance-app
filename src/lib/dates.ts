@@ -1,3 +1,5 @@
+import { APP_LOCALE } from './locale';
+
 export const DAY = 86400_000;
 
 export const isoDate = (d: Date) =>
@@ -30,10 +32,10 @@ export function relativeDay(iso: string, now = new Date()) {
   if (diff === -1) return 'Yesterday';
   if (diff === 1) return 'Tomorrow';
   if (diff > 1 && diff < 7) return `In ${diff} days`;
-  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric' });
+  return d.toLocaleDateString(APP_LOCALE, { day: 'numeric', month: 'short', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric' });
 }
 
-export const monthLabel = (d: Date) => d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+export const monthLabel = (d: Date) => d.toLocaleDateString(APP_LOCALE, { month: 'long', year: 'numeric' });
 
 /** Indian FY label, e.g. FY 2026–27 when fyStart = April (3). */
 export function fyRange(d: Date, fyStartMonth = 3) {

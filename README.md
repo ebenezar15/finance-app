@@ -11,7 +11,17 @@ npm test           # unit tests (money math, parsers, backup round-trip)
 npm run e2e        # browser checks: offline, no third-party requests, 5-second entry
 npm run build      # production PWA in dist/ (installable, works offline)
 npm run preview    # serve the production build
+npm run build:embed  # one self-contained page (dist-embed/tandem.html) for single-page hosts
 ```
+
+## Currencies
+
+Tandem works in any ISO 4217 currency the browser knows (about 300). Pick one during setup or in Settings; the default comes from your device's region.
+
+- Amounts show with each currency's own decimals (JPY has none, KWD has three) and its usual digit grouping (INR shows 1,00,000).
+- Dates stay in English but follow your region's order.
+- The quick-add calculator and imports accept any currency symbol or code (`€12`, `CHF 9.50`, `120 SEK`).
+- The bank-alert parser recognises every ISO code plus common symbols (₦ ₱ ₺ ฿ ₩ R$ zł…). A bare `$` or `¥` is read as your own currency.
 
 On first launch, pick **Explore with demo data** to get a realistic four-person household with 12 months of history, or **Set up my household** for the two-minute onboarding.
 

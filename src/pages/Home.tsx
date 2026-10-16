@@ -11,6 +11,7 @@ import {
   budgetStatus, cashFlowGraph, detectAnomalies, goalPlan, monthTotals, monthlySeries, safeToSpend, upcomingBills,
 } from '../lib/finance';
 import { useUI } from '../store/ui';
+import { APP_LOCALE } from '../lib/locale';
 
 const CARD_NAMES: Record<string, string> = {
   flow: 'Cash-flow river', budgets: 'Budgets', bills: 'Upcoming bills', goals: 'Goals', trend: 'Income vs spending', networth: 'Net worth', insights: 'Insights',
@@ -54,7 +55,7 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
         action={
           <div className="flex items-center gap-1">
             <button className="btn-ghost h-9 w-9 p-0" aria-label="Previous month" onClick={() => setOffset((o) => o - 1)}><ChevronLeft size={18} /></button>
-            <span className="text-sm font-semibold min-w-[5.5rem] text-center">{viewMonth.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</span>
+            <span className="text-sm font-semibold min-w-[5.5rem] text-center">{viewMonth.toLocaleDateString(APP_LOCALE, { month: 'short', year: 'numeric' })}</span>
             <button className="btn-ghost h-9 w-9 p-0" aria-label="Next month" disabled={offset >= 0} onClick={() => setOffset((o) => o + 1)}><ChevronRight size={18} /></button>
           </div>
         }>
@@ -106,7 +107,7 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
             {bills.slice(0, 5).map((b) => (
               <li key={b.rule.id + b.date.toISOString()} className="flex items-center gap-3 py-2.5">
                 <div className="w-11 text-center shrink-0 rounded-xl bg-sunk py-1">
-                  <p className="text-[10px] font-bold text-muted uppercase">{b.date.toLocaleDateString(undefined, { month: 'short' })}</p>
+                  <p className="text-[10px] font-bold text-muted uppercase">{b.date.toLocaleDateString(APP_LOCALE, { month: 'short' })}</p>
                   <p className="text-[17px] font-extrabold leading-none num">{b.date.getDate()}</p>
                 </div>
                 <div className="flex-1 min-w-0">

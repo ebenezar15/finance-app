@@ -15,6 +15,8 @@ import {
   simulatePrepayment, spendByCategory, yearlyCost, type Anomaly,
 } from '../lib/finance';
 import { useUI } from '../store/ui';
+import { APP_LOCALE } from '../lib/locale';
+import { saveFile } from '../lib/download';
 
 const tooltipStyle = { background: 'rgb(var(--surface))', borderRadius: 12, border: '1px solid rgb(var(--line))', fontSize: 13 };
 const axisTick = { fontSize: 11, fill: 'rgb(var(--muted))' };
@@ -211,7 +213,7 @@ function ForecastPanel({ data, now, base }: { data: Data; now: Date; base: Base 
   const events = baseline.flatMap((p) => p.events.map((e) => ({ date: p.date, rule: byName.get(e), balance: p.balance })))
     .filter((e) => e.rule && e.rule.amount >= bigCut)
     .slice(0, 8);
-  const dLabel = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  const dLabel = (iso: string) => new Date(iso).toLocaleDateString(APP_LOCALE, { day: 'numeric', month: 'short' });
 
   return (
     <Panel title="Cash-flow forecast" action={<Segmented label="Forecast length" value={days} onChange={setDays} options={[{ value: '30', label: '30 days' }, { value: '60', label: '60 days' }, { value: '90', label: '90 days' }]} />}>
@@ -236,7 +238,7 @@ function ForecastPanel({ data, now, base }: { data: Data; now: Date; base: Base 
             <CartesianGrid vertical={false} stroke="rgb(var(--line))" strokeDasharray="3 3" />
             <XAxis dataKey="date" tickFormatter={dLabel} axisLine={false} tickLine={false} tick={axisTick} minTickGap={28} />
             <YAxis tickFormatter={(v) => fmt(Math.round(Number(v) * 100), { compact: true })} axisLine={false} tickLine={false} tick={axisTick} width={64} />
-            <Tooltip contentStyle={tooltipStyle} labelFormatter={(l) => new Date(String(l)).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}
+            <Tooltip contentStyle={tooltipStyle} labelFormatter={(l) => new Date(String(l)).toLocaleDateString(APP_LOCALE, { weekday: 'short', day: 'numeric', month: 'short' })}
               formatter={(v, name) => [fmt(Math.round(Number(v) * 100)), name === 'base' ? 'Forecast' : 'With your changes']} />
             <ReferenceLine y={threshold / 100} stroke="rgb(var(--warn))" strokeDasharray="5 4" label={{ value: 'Low-balance line', position: 'insideTopLeft', fill: 'rgb(var(--warn))', fontSize: 11 }} />
             <Area type="monotone" dataKey="base" stroke="rgb(var(--primary))" strokeWidth={2.5} fill="url(#fc)" isAnimationActive={false} />
@@ -295,7 +297,7 @@ function ForecastPanel({ data, now, base }: { data: Data; now: Date; base: Base 
             <WhatIfStat label={`Balance in ${n} days`} value={<span className="money">{fmt(endWhat - endBase, { sign: true })}</span>} hint="vs the forecast" />
             <WhatIfStat label="Yearly savings from the cut" value={<span className="money">{fmt(yearlyCut)}</span>} hint={`From about ${fmt(base.dining)} a month on dining`} />
             <WhatIfStat label="Interest saved" value={<span className="money">{fmt(prepaySim?.interestSaved ?? 0)}</span>} hint={loanEntry ? `On ${loanEntry.loan.name}` : 'No loan added'} />
-            <WhatIfStat label="Loan paid off sooner" value={`${prepaySim?.monthsSaved ?? 0} months`} hint={prepaySim ? `New payoff ${new Date(prepaySim.newPayoff).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}` : undefined} />
+            <WhatIfStat label="Loan paid off sooner" value={`${prepaySim?.monthsSaved ?? 0} months`} hint={prepaySim ? `New payoff ${new Date(prepaySim.newPayoff).toLocaleDateString(APP_LOCALE, { month: 'short', year: 'numeric' })}` : undefined} />
           </ul>
         </div>
         {active && <button className="btn-ghost mt-4 text-muted" onClick={() => { setCut(0); setExtra(0); setPrepay(0); }}>Reset what-if</button>}
@@ -534,7 +536,7 @@ function useStory(data: Data, now: Date) {
     const withRate = series.map((s) => ({ ...s, rate: s.income > 0 ? (s.income - s.expense) / s.income : null }));
     const last = withRate[withRate.length - 1];
     const monthDate = addMonths(startOfMonth(now), -1);
-    const monthName = monthDate.toLocaleDateString(undefined, { month: 'long' });
+    const monthName = monthDate.toLocaleDateString(APP_LOCALE, { month: 'long' });
     const ratePct = last.rate === null ? null : Math.round(last.rate * 100);
     let headline: string;
     if (ratePct === null) headline = `Not much income was recorded in ${monthName}. Add it to see your story.`;
@@ -546,7 +548,7 @@ function useStory(data: Data, now: Date) {
       for (let i = earlier.length - 1; i >= 0; i--) {
         if ((earlier[i].rate ?? 0) >= last.rate!) {
           best = false;
-          if (i < earlier.length - 1) since = new Date(earlier[i].month + '-01T00:00').toLocaleDateString(undefined, { month: 'long' });
+          if (i < earlier.length - 1) since = new Date(earlier[i].month + '-01T00:00').toLocaleDateString(APP_LOCALE, { month: 'long' });
           break;
         }
       }
@@ -645,11 +647,7 @@ function StoryPanel({ data, now }: { data: Data; now: Date }) {
 
       const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/png'));
       if (!blob) throw new Error('no blob');
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = `tandem-story-${story.monthName.toLowerCase()}-${story.year}.png`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      await saveFile(`tandem-story-${story.monthName.toLowerCase()}-${story.year}.png`, blob);
     } catch {
       useUI.getState().toast('Could not create the image on this device.');
     } finally {

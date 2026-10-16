@@ -30,14 +30,22 @@ export const DEFAULT_CATEGORIES: Category[] = [
 ];
 
 /** Rough cost-of-living multiplier per currency (relative to USD), so demo numbers feel local. */
-const SCALE: Record<string, number> = { USD: 1, EUR: 0.92, GBP: 0.8, INR: 30, AED: 3.6, SGD: 1.35, AUD: 1.5, CAD: 1.35, JPY: 150, CHF: 0.9, ZAR: 18, BRL: 5 };
+/** Values are deliberately rough (purchasing-power-ish, rounded); unknown currencies fall back to 1. */
+const SCALE: Record<string, number> = {
+  USD: 1, EUR: 0.92, GBP: 0.8, INR: 30, AED: 3.6, SGD: 1.35, AUD: 1.5, CAD: 1.35, JPY: 150, CHF: 0.9, ZAR: 18, BRL: 5,
+  CNY: 7, HKD: 7.8, NZD: 1.6, SAR: 3.75, QAR: 3.6, KWD: 0.3, BHD: 0.38, OMR: 0.38, NGN: 700, KES: 130, GHS: 12, EGP: 30,
+  MAD: 10, MXN: 17, ARS: 900, CLP: 900, COP: 4000, PEN: 3.7, SEK: 10, NOK: 10, DKK: 6.8, ISK: 135, PLN: 4, CZK: 23,
+  HUF: 360, RON: 4.6, BGN: 1.8, TRY: 30, ILS: 3.7, RUB: 90, UAH: 40, PKR: 140, BDT: 60, LKR: 150, NPR: 50, IDR: 15000,
+  MYR: 4.7, THB: 35, VND: 24000, PHP: 56, KRW: 1300, TWD: 32,
+};
 
 export const defaultProfile = (currency = 'USD'): Profile => ({
   appName: 'Tandem',
   primaryUser: '',
   currency,
   budgetStyle: 'envelope',
-  fyStartMonth: currency === 'INR' ? 3 : currency === 'GBP' ? 3 : 0,
+  // Tax years that don't start in January: India, UK, Pakistan, NZ (April); Australia, Egypt (July).
+  fyStartMonth: ['INR', 'GBP', 'NZD', 'JPY'].includes(currency) ? 3 : ['AUD', 'EGP', 'PKR', 'BDT', 'KES'].includes(currency) ? 6 : 0,
   topGoals: [],
   onboarded: false,
   dashboardCards: ['flow', 'budgets', 'bills', 'goals', 'trend', 'networth', 'insights'].map((id) => ({ id, hidden: false })),
