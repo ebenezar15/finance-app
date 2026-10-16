@@ -173,9 +173,9 @@ export async function seedDemo(currency = 'USD', now = new Date()) {
   for (const rule of rules) rule.lastPosted = isoDate(now);
 
   const budgets: Budget[] = [
-    ['groceries', 720], ['dining', 380], ['transport', 300], ['shopping', 300], ['entertainment', 120], ['utilities', 260],
+    ['groceries', 720], ['dining', 380], ['transport', 300], ['shopping', 320], ['entertainment', 120], ['utilities', 260],
     ['subscriptions', 60], ['health', 160], ['childcare', 340], ['gifts', 80],
-  ].map(([c, v]) => ({ id: `b-${c}`, categoryId: c as string, amount: m(v as number), rollover: c === 'gifts' || c === 'shopping' }));
+  ].map(([c, v]) => ({ id: `b-${c}`, categoryId: c as string, amount: m(v as number), rollover: c === 'gifts' || c === 'entertainment' }));
   budgets.push({ id: 'b-maya-fun', categoryId: 'entertainment', amount: m(30), rollover: true, memberId: 'm-maya' });
 
   const goals: Goal[] = [
