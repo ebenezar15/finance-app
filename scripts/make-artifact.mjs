@@ -15,5 +15,8 @@ const page = [
   '<div id="root"></div>',
   ...scripts,
 ].join('\n');
-writeFileSync(out, page);
-console.log(`Wrote ${out} (${(page.length / 1024).toFixed(0)} KB)`);
+// Some hosts reject a literal U+FFFD (it usually signals corrupted text). In this bundle it only
+// appears inside JS string/regex literals, where the escape \uFFFD is equivalent.
+const safe = page.replace(/\uFFFD/g, '\\uFFFD');
+writeFileSync(out, safe);
+console.log(`Wrote ${out} (${(safe.length / 1024).toFixed(0)} KB)`);
