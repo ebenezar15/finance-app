@@ -8,10 +8,17 @@ import { getSetting, purgeTrash } from './db/db';
 import { seedDemo } from './db/seed';
 import { guessCurrency } from './components/CurrencySelect';
 import { EmbedBanner } from './components/EmbedBanner';
+import { startCloudSync, useSync } from './lib/cloudSync';
+
+/** Asks the browser not to evict the household's data under storage pressure (Chrome, Safari 15.2+). */
+function requestPersistentStorage() {
+  try { navigator.storage?.persist?.().catch(() => {}); } catch { /* unsupported */ }
+}
 import { postDueRecurring, useProfile } from './db/hooks';
 import Home from './pages/Home';
 import Onboarding from './pages/Onboarding';
 import { useUI } from './store/ui';
+import { rgb, schemeById } from './lib/schemes';
 
 const Activity = lazy(() => import('./pages/Activity'));
 const Budgets = lazy(() => import('./pages/Budgets'));
@@ -24,28 +31,28 @@ const Family = lazy(() => import('./pages/Family'));
 const Inbox = lazy(() => import('./pages/Inbox'));
 const Settings = lazy(() => import('./pages/Settings'));
 
-function hexToChannels(hex: string) {
-  const n = parseInt(hex.replace('#', ''), 16);
-  return `${(n >> 16) & 255} ${(n >> 8) & 255} ${n & 255}`;
-}
+const TOKENS = ['bg', 'surface', 'sunk', 'line', 'primary', 'onprimary'] as const;
 
 function useTheme() {
-  const { theme, accent } = useUI();
+  const { theme, scheme } = useUI();
   useEffect(() => {
     const root = document.documentElement;
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const apply = () => {
       const t = theme === 'system' ? (mq.matches ? 'dark' : 'light') : theme;
       root.dataset.theme = t;
-      // Custom accent only applies to light theme; dark uses its own luminous primary for contrast.
-      if (t === 'light' && accent && accent !== '#0F4C5C') root.style.setProperty('--primary', hexToChannels(accent));
-      else root.style.removeProperty('--primary');
-      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', t === 'dark' ? '#0B1317' : '#F3F4F1');
+      // High contrast keeps its own fixed palette; every other theme takes the scheme's tones.
+      const tones = t === 'contrast' ? null : schemeById(scheme)[t === 'dark' ? 'dark' : 'light'];
+      for (const k of TOKENS) {
+        if (tones) root.style.setProperty(`--${k}`, tones[k]);
+        else root.style.removeProperty(`--${k}`);
+      }
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', tones ? rgb(tones.bg) : '#FFFFFF');
     };
     apply();
     mq.addEventListener('change', apply);
     return () => mq.removeEventListener('change', apply);
-  }, [theme, accent]);
+  }, [theme, scheme]);
 }
 
 export default function App() {
@@ -64,17 +71,20 @@ export default function App() {
   }, [profile?.onboarded]);
 
   // Shared link: open straight into the demo household (in the viewer's local currency) unless they chose to start fresh.
+  const syncReady = useSync((s) => s.ready);
+  useEffect(() => { startCloudSync(); requestPersistentStorage(); }, []);
   useEffect(() => {
-    if (import.meta.env.VITE_EMBED !== '1' || !profile || profile.onboarded) return;
+    // Wait for the account copy first, so a returning user gets their household, not the demo.
+    if (import.meta.env.VITE_EMBED !== '1' || !syncReady || !profile || profile.onboarded) return;
     getSetting('skipDemo', false).then((skip) => { if (!skip) seedDemo(guessCurrency()); });
-  }, [profile]);
+  }, [profile, syncReady]);
 
   // PWA shortcut: /?add=1 opens the quick-add sheet straight away.
   useEffect(() => {
     if (params.get('add') === '1') { openQuickAdd(); nav('/', { replace: true }); }
   }, [params, openQuickAdd, nav]);
 
-  if (!profile) return <div className="min-h-screen bg-bg" />;
+  if (!profile || (!syncReady && !profile.onboarded)) return <div className="min-h-screen bg-bg grid place-items-center text-sm text-muted">Loading your household…</div>;
   if (!profile.onboarded) return <Onboarding />;
   if (locked) return <LockScreen />;
 

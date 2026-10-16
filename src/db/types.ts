@@ -34,6 +34,9 @@ export interface Account {
 }
 
 export type TxType = 'income' | 'expense' | 'transfer' | 'refund' | 'adjustment';
+/** How the money moved. Separate from the account: a bank account can pay by card, transfer or online. */
+export type PaymentMethod = 'cash' | 'debit' | 'credit' | 'online' | 'transfer' | 'wallet' | 'cheque' | 'other';
+
 export type TxSource = 'manual' | 'sms' | 'ocr' | 'import' | 'recurring' | 'voice' | 'share';
 
 export interface SplitLine {
@@ -53,6 +56,7 @@ export interface Transaction {
   categoryId?: string;
   payee?: string;
   memberId?: string;
+  paymentMethod?: PaymentMethod;
   tags: string[];
   notes?: string;
   source: TxSource;

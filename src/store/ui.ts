@@ -18,7 +18,7 @@ interface ConfirmRequest { message: string; action: string; danger?: boolean; re
 interface UI {
   confirmReq: ConfirmRequest | null;
   theme: Theme;
-  accent: string;
+  scheme: string;
   hideAmounts: boolean;
   reduceMotion: boolean;
   viewAs: string | null; // member id for role-limited views (kids mode)
@@ -26,7 +26,7 @@ interface UI {
   toasts: Toast[];
   locked: boolean;
   setTheme: (t: Theme) => void;
-  setAccent: (c: string) => void;
+  setScheme: (id: string) => void;
   toggleHide: () => void;
   setViewAs: (id: string | null) => void;
   openQuickAdd: (o?: UI['quickAdd']['type'], draft?: Record<string, unknown>) => void;
@@ -41,7 +41,7 @@ export const useUI = create<UI>()(
   persist(
     (set) => ({
       theme: 'system',
-      accent: '#0F4C5C',
+      scheme: 'harbor',
       hideAmounts: false,
       reduceMotion: false,
       viewAs: null,
@@ -50,7 +50,7 @@ export const useUI = create<UI>()(
       locked: false,
       confirmReq: null,
       setTheme: (theme) => set({ theme }),
-      setAccent: (accent) => set({ accent }),
+      setScheme: (scheme) => set({ scheme }),
       toggleHide: () => set((s) => ({ hideAmounts: !s.hideAmounts })),
       setViewAs: (viewAs) => set({ viewAs }),
       openQuickAdd: (type = 'expense', draft) => set({ quickAdd: { open: true, type, draft } }),
@@ -63,7 +63,7 @@ export const useUI = create<UI>()(
       dismiss: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
       setLocked: (locked) => set({ locked }),
     }),
-    { name: 'tandem-ui', storage: safeStorage, partialize: (s) => ({ theme: s.theme, accent: s.accent, hideAmounts: s.hideAmounts, viewAs: s.viewAs }) },
+    { name: 'tandem-ui', storage: safeStorage, partialize: (s) => ({ theme: s.theme, scheme: s.scheme, hideAmounts: s.hideAmounts, viewAs: s.viewAs }) },
   ),
 );
 

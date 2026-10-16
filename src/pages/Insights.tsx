@@ -17,6 +17,8 @@ import {
 import { useUI } from '../store/ui';
 import { APP_LOCALE } from '../lib/locale';
 import { saveFile } from '../lib/download';
+import { AskMoney } from '../components/AskMoney';
+import { YearHeatmap } from '../components/YearHeatmap';
 
 const tooltipStyle = { background: 'rgb(var(--surface))', borderRadius: 12, border: '1px solid rgb(var(--line))', fontSize: 13 };
 const axisTick = { fontSize: 11, fill: 'rgb(var(--muted))' };
@@ -82,7 +84,9 @@ function InsightsView({ data }: { data: Data }) {
         <h1 className="h1">Insights</h1>
       </div>
 
+      <AskMoney />
       <HealthPanel total={health.total} parts={health.parts} />
+      <YearHeatmap data={data} />
       <ForecastPanel data={data} now={now} base={base} />
       <div className="grid lg:grid-cols-2 gap-6">
         <AnomaliesPanel anomalies={detectAnomalies(data.txs, data.categories, now)} />
@@ -91,7 +95,7 @@ function InsightsView({ data }: { data: Data }) {
       <TrendsPanel data={data} now={now} mk={mk} avgCat={base.avgCat} />
       <StoryPanel data={data} now={now} />
 
-      <p className="text-xs text-muted text-center pb-4">Insights are calculated on this device. This is not professional financial advice.</p>
+      <p className="text-xs text-muted text-center pb-4">Insights are calculated on this device. Questions you ask send only the totals shown under “See what’s sent”. This is not professional financial advice.</p>
     </div>
   );
 }

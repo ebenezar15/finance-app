@@ -1,7 +1,7 @@
 import Dexie, { type Table } from 'dexie';
 import type {
   Account, AuditEntry, Budget, Category, Goal, Holding, IOU, Loan, Member, MerchantRule,
-  RecurringRule, Setting, Transaction,
+  PaymentMethod, RecurringRule, Setting, Transaction,
 } from './types';
 
 export class TandemDB extends Dexie {
@@ -37,6 +37,28 @@ export class TandemDB extends Dexie {
       settings: 'key',
       audit: '++id, at',
     });
+    // v2: payment method on transactions (indexed for filtering), backfilled from the account type.
+    this.version(2).stores({
+      transactions: 'id, date, accountId, categoryId, memberId, type, source, needsReview, deletedAt, refNo, paymentMethod',
+    }).upgrade(async (tx) => {
+      const accounts = await tx.table('accounts').toArray();
+      const kind = new Map(accounts.map((a: { id: string; type: string }) => [a.id, a.type]));
+      await tx.table('transactions').toCollection().modify((t: { accountId: string; type: string; paymentMethod?: string }) => {
+        if (t.paymentMethod || t.type === 'transfer') return;
+        t.paymentMethod = defaultMethodFor(kind.get(t.accountId));
+      });
+    });
+  }
+}
+
+/** A sensible payment method for an account type, used for defaults and the v2 backfill. */
+export function defaultMethodFor(accountType?: string): PaymentMethod {
+  switch (accountType) {
+    case 'cash': return 'cash';
+    case 'credit': return 'credit';
+    case 'wallet': return 'wallet';
+    case 'bank': return 'debit';
+    default: return 'other';
   }
 }
 

@@ -99,9 +99,29 @@ export async function seedDemo(currency = 'USD', now = new Date()) {
   ];
 
   const txs: Transaction[] = [];
+  // What the demo family would jot down under "For what?" — used on roughly a third of entries.
+  const PURPOSE: Record<string, string[]> = {
+    groceries: ['Weekly shop', 'Party snacks for Leo', 'Top-up: milk and bread', 'Bulk pantry restock'],
+    dining: ['Date night', 'Lunch with the team', 'Friday family dinner', 'Coffee before school run'],
+    transport: ['Fuel for the week', 'Airport pick-up', 'Maya’s monthly pass'],
+    shopping: ['Winter jacket for Leo', 'New bedside lamp', 'School shoes', 'Birthday present for Grandma'],
+    entertainment: ['Movie night', 'Bowling with Leo’s friends', 'Game for Maya'],
+    health: ['Allergy medicine', 'Leo’s check-up'],
+    gifts: ['Teacher’s gift', 'Donation drive', 'Wedding gift for Priya'],
+  };
+  const methodFor = (t: Partial<Transaction>): Transaction['paymentMethod'] => {
+    if (t.type === 'transfer') return undefined;
+    if (t.accountId === 'a-cash') return 'cash';
+    if (t.accountId === 'a-card') return 'credit';
+    if (t.source === 'recurring') return t.type === 'income' ? 'transfer' : 'online';
+    return t.type === 'income' ? 'transfer' : pick(['debit', 'debit', 'online', 'online', 'wallet']);
+  };
   const add = (t: Partial<Transaction> & Pick<Transaction, 'date' | 'amount' | 'type' | 'accountId'>) =>
     txs.push({
-      id: uid(), currency, tags: [], source: 'manual', needsReview: false, createdAt: Date.now(), updatedAt: Date.now(), ...t,
+      id: uid(), currency, tags: [], source: 'manual', needsReview: false, createdAt: Date.now(), updatedAt: Date.now(),
+      paymentMethod: methodFor(t),
+      notes: t.categoryId && PURPOSE[t.categoryId] && r() < 0.33 ? pick(PURPOSE[t.categoryId]) : undefined,
+      ...t,
     } as Transaction);
 
   const merchants: Record<string, [string, number, string[]][]> = {

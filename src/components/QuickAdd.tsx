@@ -1,9 +1,10 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Check, Delete, Split, Star, Sparkles } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { db, getSetting, setSetting } from '../db/db';
+import { db, defaultMethodFor, getSetting, setSetting } from '../db/db';
+import { PAYMENT_METHODS } from '../lib/payment';
 import { saveTransaction, useData, useProfile } from '../db/hooks';
-import type { TxType } from '../db/types';
+import type { PaymentMethod, TxType } from '../db/types';
 import { quickSuggestions, suggestCategory } from '../lib/categorize';
 import { isoDate } from '../lib/dates';
 import { evalAmount, splitEvenly, toMinor } from '../lib/money';
@@ -31,6 +32,8 @@ export function QuickAdd() {
   const [memberId, setMemberId] = useState<string | undefined>();
   const [date, setDate] = useState(isoDate(new Date()));
   const [notes, setNotes] = useState('');
+  const [method, setMethod] = useState<PaymentMethod>('debit');
+  const [tags, setTags] = useState('');
   const [splitMembers, setSplitMembers] = useState<string[]>([]);
   const [showMore, setShowMore] = useState(false);
   const [done, setDone] = useState(false);
@@ -44,12 +47,16 @@ export function QuickAdd() {
     setCategoryId(d.categoryId as string | undefined);
     setDate((d.date as string) ?? isoDate(new Date()));
     setNotes((d.notes as string) ?? '');
+    setTags('');
+    if (d.paymentMethod) setMethod(d.paymentMethod as PaymentMethod);
     setSplitMembers([]); setShowMore(false); setDone(false); setAutoCat(null);
   }, [quickAdd.open, quickAdd.type, quickAdd.draft]);
 
   useEffect(() => {
     if (!data || accountId) return;
-    setAccountId(data.accounts.find((a) => a.type === 'credit')?.id ?? data.accounts[0]?.id ?? '');
+    const first = data.accounts.find((a) => a.type === 'credit') ?? data.accounts[0];
+    setAccountId(first?.id ?? '');
+    setMethod(defaultMethodFor(first?.type));
     setToAccountId(data.accounts.find((a) => a.type === 'bank')?.id ?? '');
     setMemberId(data.viewer?.id ?? data.members[0]?.id);
   }, [data, accountId]);
@@ -74,6 +81,24 @@ export function QuickAdd() {
       .sort((a, b) => (uses.get(b.id) ?? 0) - (uses.get(a.id) ?? 0));
   }, [data, type]);
   const chosenCat = categoryId ?? autoCat?.id;
+
+  // Keep the payment method and the account in step: paying cash moves the entry to the cash
+  // wallet, picking a credit card account sets "Credit card", and so on. Either can be overridden.
+  const pickMethod = (m: PaymentMethod) => {
+    setMethod(m);
+    if (!data) return;
+    const cur = data.acct(accountId);
+    const want = m === 'cash' ? 'cash' : m === 'credit' ? 'credit' : m === 'wallet' ? 'wallet' : 'bank';
+    if (cur?.type === want) return;
+    const match = data.accounts.find((a) => !a.archived && a.type === want && !a.savings) ?? data.accounts.find((a) => !a.archived && a.type === want);
+    if (match) setAccountId(match.id);
+  };
+  const pickAccount = (id: string) => {
+    setAccountId(id);
+    const next = defaultMethodFor(data?.acct(id)?.type);
+    // A bank account can pay by card, online or transfer, so only change the method when it no longer fits.
+    if (!(next === 'debit' && ['debit', 'online', 'transfer', 'cheque'].includes(method))) setMethod(next);
+  };
 
   const press = (k: string) => {
     if (k === '⌫') return setExpr((e) => e.slice(0, -1));
@@ -102,7 +127,9 @@ export function QuickAdd() {
     const when = new Date(`${date}T${new Date().toTimeString().slice(0, 5)}`);
     const row = await saveTransaction({
       amount, type, accountId, toAccountId: type === 'transfer' ? toAccountId : undefined,
-      categoryId: type === 'transfer' ? undefined : chosenCat, payee: payee || undefined, memberId, notes: notes || undefined,
+      categoryId: type === 'transfer' ? undefined : chosenCat, payee: payee || undefined, memberId, notes: notes.trim() || undefined,
+      paymentMethod: type === 'transfer' ? undefined : method,
+      tags: tags.split(',').map((t) => t.trim().toLowerCase().replace(/^#/, '')).filter(Boolean),
       date: when.toISOString(), currency: profile?.currency, splits, source: (quickAdd.draft?.source as 'voice') ?? 'manual',
     });
     setDone(true);
@@ -201,18 +228,34 @@ export function QuickAdd() {
                 ))}
               </div>
             </div>
+            <label className="block">
+              <span className="label">For what?</span>
+              <input className="field" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={200}
+                placeholder={type === 'income' ? 'e.g. September invoice, birthday gift' : 'e.g. Leo’s birthday cake, school trip fee'} />
+            </label>
+            <div>
+              <span className="label" id="qa-method">{type === 'income' ? 'Received as' : 'Paid with'}</span>
+              <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1" role="radiogroup" aria-labelledby="qa-method">
+                {PAYMENT_METHODS.filter((m) => type !== 'income' || !['credit', 'debit'].includes(m.id)).map(({ id, short, label, icon: Icon }) => (
+                  <button key={id} role="radio" aria-checked={method === id} aria-label={label} onClick={() => pickMethod(id)} className="chip shrink-0">
+                    <Icon size={14} aria-hidden />{short}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted mt-1.5">From <b className="text-ink">{data.acct(accountId)?.name ?? 'no account'}</b> · change under more details</p>
+            </div>
           </>
         )}
 
         <button className="text-sm font-semibold text-primary" onClick={() => setShowMore((s) => !s)} aria-expanded={showMore}>
-          {showMore ? 'Fewer details' : 'Account, date, person, split…'}
+          {showMore ? 'Fewer details' : 'More details: account, date, person, tags, split'}
         </button>
         {showMore && (
           <div className="grid grid-cols-2 gap-3 animate-rise">
             {type !== 'transfer' && (
               <label><span className="label">Account</span>
-                <select className="field" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-                  {data.accounts.filter((a) => a.type !== 'asset').map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                <select className="field" value={accountId} onChange={(e) => pickAccount(e.target.value)}>
+                  {data.accounts.filter((a) => a.type !== 'asset' && !a.archived).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select></label>
             )}
             <label><span className="label">Date</span><input type="date" className="field" value={date} onChange={(e) => setDate(e.target.value)} /></label>
@@ -220,7 +263,7 @@ export function QuickAdd() {
               <select className="field" value={memberId} onChange={(e) => setMemberId(e.target.value)}>
                 {data.members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select></label>
-            <label className="col-span-2"><span className="label">Note</span><input className="field" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" /></label>
+            <label className="col-span-2"><span className="label">Tags</span><input className="field" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="e.g. holiday, school, tax — separate with commas" /></label>
             {type === 'expense' && (
               <div className="col-span-2">
                 <span className="label flex items-center gap-1.5"><Split size={14} /> Split evenly between</span>

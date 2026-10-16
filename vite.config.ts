@@ -8,7 +8,7 @@ import { viteSingleFile } from 'vite-plugin-singlefile';
 export default defineConfig(({ mode }) => {
   const embed = mode === 'embed';
   return {
-  base: embed ? './' : '/',
+  base: embed ? './' : process.env.BASE_PATH ?? '/',
   define: { 'import.meta.env.VITE_EMBED': JSON.stringify(embed ? '1' : '') },
   plugins: [
     react(),
@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => {
     VitePWA({
       disable: embed,
       registerType: 'autoUpdate',
-      includeAssets: ['icon.svg'],
+      includeAssets: ['icon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: 'Tandem — household money',
         short_name: 'Tandem',
@@ -24,11 +24,19 @@ export default defineConfig(({ mode }) => {
         theme_color: '#0F4C5C',
         background_color: '#F3F4F1',
         display: 'standalone',
-        start_url: '/',
-        icons: [{ src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' }],
-        shortcuts: [{ name: 'Add expense', url: '/?add=1' }],
+        start_url: '.',
+        scope: '.',
+        orientation: 'portrait',
+        categories: ['finance', 'productivity'],
+        icons: [
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+        ],
+        shortcuts: [{ name: 'Add expense', short_name: 'Add', url: './?add=1', icons: [{ src: 'icon-192.png', sizes: '192x192' }] }],
       },
-      workbox: { globPatterns: ['**/*.{js,css,html,svg,woff,woff2}'], navigateFallback: '/index.html' },
+      workbox: { globPatterns: ['**/*.{js,css,html,svg,png,woff,woff2}'], navigateFallback: 'index.html' },
     }),
   ],
   build: embed

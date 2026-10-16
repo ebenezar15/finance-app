@@ -36,3 +36,21 @@ export async function saveFile(filename: string, data: Blob): Promise<boolean> {
     return false;
   }
 }
+
+/** True when this device can hand a file to the share sheet (Mail, Drive, WhatsApp…). */
+export function canShareFiles() {
+  try {
+    return !EMBED && typeof navigator.canShare === 'function' && navigator.canShare({ files: [new File(['x'], 'x.json', { type: 'application/json' })] });
+  } catch { return false; }
+}
+
+/** Opens the phone's share sheet with the file, e.g. to email a backup to yourself. */
+export async function shareFile(filename: string, data: Blob, text: string) {
+  try {
+    await navigator.share({ files: [new File([data], filename, { type: data.type || 'application/octet-stream' })], title: filename, text });
+    return true;
+  } catch (e) {
+    if ((e as Error)?.name !== 'AbortError') useUI.getState().toast('Sharing didn’t work here. Use Download instead.');
+    return false;
+  }
+}

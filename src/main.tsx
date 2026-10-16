@@ -12,7 +12,7 @@ if (!EMBED) registerSW({ immediate: true });
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <Router>
+    <Router basename={EMBED ? undefined : import.meta.env.BASE_URL.replace(/\/$/, '') || undefined}>
       <App />
     </Router>
   </React.StrictMode>,

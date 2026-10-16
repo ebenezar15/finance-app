@@ -5,13 +5,14 @@ import { useSearchParams } from 'react-router-dom';
 import { Avatar, CatIcon, Empty, Money, SOURCE_LABEL, Segmented, Sheet, SourceBadge, useFmt } from '../components/ui';
 import { db, log } from '../db/db';
 import { saveTransaction, softDelete, useData, useProfile, type Data } from '../db/hooks';
-import type { Transaction, TxType } from '../db/types';
+import type { PaymentMethod, Transaction, TxType } from '../db/types';
 import { toCSV } from '../lib/csv';
 import { isoDate, monthKey, monthLabel, relativeDay } from '../lib/dates';
 import { evalAmount, formatMoney, toMinor } from '../lib/money';
 import { useUI } from '../store/ui';
 import { APP_LOCALE } from '../lib/locale';
 import { saveFile } from '../lib/download';
+import { PAYMENT_METHODS, methodInfo } from '../lib/payment';
 
 const PAGE = 150;
 
@@ -24,11 +25,12 @@ interface Filters {
   acct: string;
   member: string;
   source: string;
+  method: string;
   min: string;
   max: string;
 }
 
-const EMPTY: Filters = { month: '', type: '', cat: '', acct: '', member: '', source: '', min: '', max: '' };
+const EMPTY: Filters = { month: '', type: '', cat: '', acct: '', member: '', source: '', method: '', min: '', max: '' };
 
 const TAX_SECTIONS: { value: string; label: string }[] = [
   { value: '', label: 'None' },
@@ -119,12 +121,13 @@ function ActivityList({ data }: { data: Data }) {
       if (f.acct && t.accountId !== f.acct && t.toAccountId !== f.acct) return false;
       if (f.member && t.memberId !== f.member) return false;
       if (f.source && t.source !== f.source) return false;
+      if (f.method && t.paymentMethod !== f.method) return false;
       if (min !== undefined && t.amount < min) return false;
       if (max !== undefined && t.amount > max) return false;
       if (!needle) return true;
       const major = (t.amount / 100).toFixed(2);
       const hay = [
-        t.payee, t.notes, catName.get(t.categoryId ?? ''), t.tags.join(' '), major, major.replace(/\.00$/, ''), formatMoney(t.amount, currency),
+        t.payee, t.notes, catName.get(t.categoryId ?? ''), t.tags.join(' '), methodInfo(t.paymentMethod)?.label, major, major.replace(/\.00$/, ''), formatMoney(t.amount, currency),
       ].join(' ').toLowerCase();
       return needle.split(/\s+/).every((w) => hay.includes(w));
     });
@@ -159,6 +162,7 @@ function ActivityList({ data }: { data: Data }) {
   if (f.acct) active.push({ key: 'acct', label: data.acct(f.acct)?.name ?? 'Account' });
   if (f.member) active.push({ key: 'member', label: data.member(f.member)?.name ?? 'Member' });
   if (f.source) active.push({ key: 'source', label: SOURCE_LABEL[f.source] ?? f.source });
+  if (f.method) active.push({ key: 'method', label: methodInfo(f.method)?.label ?? f.method });
   if (f.min) active.push({ key: 'min', label: `At least ${fmt(toMinor(f.min))}` });
   if (f.max) active.push({ key: 'max', label: `At most ${fmt(toMinor(f.max))}` });
 
@@ -190,12 +194,12 @@ function ActivityList({ data }: { data: Data }) {
   }
 
   async function exportCSV() {
-    const rows: (string | number)[][] = [['Date', 'Type', 'Payee', 'Category', 'Account', 'To account', 'Member', 'Amount', 'Currency', 'Source', 'Tags', 'Notes', 'Needs review']];
+    const rows: (string | number)[][] = [['Date', 'Type', 'Payee', 'Category', 'Account', 'To account', 'Member', 'Amount', 'Currency', 'Paid with', 'Source', 'Tags', 'For what', 'Needs review']];
     for (const t of filtered) {
       rows.push([
         isoDate(new Date(t.date)), TYPE_LABEL[t.type], t.payee ?? '', data.cat(t.categoryId)?.name ?? '', data.acct(t.accountId)?.name ?? '',
         data.acct(t.toAccountId)?.name ?? '', data.member(t.memberId)?.name ?? '',
-        ((t.type === 'transfer' ? t.amount : net(t)) / 100).toFixed(2), t.currency, SOURCE_LABEL[t.source] ?? t.source,
+        ((t.type === 'transfer' ? t.amount : net(t)) / 100).toFixed(2), t.currency, methodInfo(t.paymentMethod)?.label ?? '', SOURCE_LABEL[t.source] ?? t.source,
         t.tags.join('; '), t.notes ?? '', t.needsReview ? 'Yes' : 'No',
       ]);
     }
@@ -271,6 +275,12 @@ function ActivityList({ data }: { data: Data }) {
               <select className="field" value={f.member} onChange={(e) => set('member', e.target.value)}>
                 <option value="">Anyone</option>
                 {data.members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
+            </label>
+            <label><span className="label">Paid with</span>
+              <select className="field" value={f.method} onChange={(e) => set('method', e.target.value)}>
+                <option value="">Any method</option>
+                {PAYMENT_METHODS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
               </select>
             </label>
             <label><span className="label">Source</span>
@@ -386,7 +396,7 @@ function Row({ t, data, selecting, checked, onClick }: { t: Transaction; data: D
   const to = data.acct(t.toAccountId);
   const m = data.member(t.memberId);
   const title = t.payee || (t.type === 'transfer' ? `Transfer${to ? ` to ${to.name}` : ''}` : c?.name ?? 'Untitled entry');
-  const meta = [t.type === 'transfer' ? 'Transfer' : t.splits?.length ? 'Split' : c?.name ?? 'Uncategorised', acct?.name].filter(Boolean).join(' · ');
+  const meta = [t.type === 'transfer' ? 'Transfer' : t.splits?.length ? 'Split' : c?.name ?? 'Uncategorised', methodInfo(t.paymentMethod)?.label ?? acct?.name].filter(Boolean).join(' · ');
   const inner = (
     <>
       {selecting && (
@@ -399,6 +409,7 @@ function Row({ t, data, selecting, checked, onClick }: { t: Transaction; data: D
           <span className="font-semibold truncate">{title}</span>
           {t.private && <span className="text-[11px] font-semibold text-muted border border-line rounded-md px-1.5 py-0.5 shrink-0">Private</span>}
         </span>
+        {t.notes && <span className="block text-[13px] text-ink/80 truncate">{t.notes}</span>}
         <span className="flex items-center gap-1.5 text-[13px] text-muted min-w-0 flex-wrap">
           <span className="truncate">{meta}</span>
           <SourceBadge s={t.source} />
@@ -434,6 +445,7 @@ function EditSheet({ tx, data, onClose }: { tx: Transaction; data: Data; onClose
   const [memberId, setMemberId] = useState(tx.memberId ?? '');
   const [date, setDate] = useState(isoDate(new Date(tx.date)));
   const [notes, setNotes] = useState(tx.notes ?? '');
+  const [method, setMethod] = useState(tx.paymentMethod ?? '');
   const [tags, setTags] = useState(tx.tags.join(', '));
   const [priv, setPriv] = useState(!!tx.private);
   const [tax, setTax] = useState(tx.taxSection ?? '');
@@ -453,6 +465,7 @@ function EditSheet({ tx, data, onClose }: { tx: Transaction; data: Data; onClose
       categoryId: type === 'transfer' ? undefined : categoryId || undefined,
       accountId, toAccountId: type === 'transfer' ? toAccountId : undefined, memberId: memberId || undefined,
       date: Number.isNaN(when.getTime()) ? tx.date : when.toISOString(), notes: notes.trim() || undefined,
+      paymentMethod: type === 'transfer' ? undefined : (method as PaymentMethod) || undefined,
       tags: tags.split(',').map((s) => s.trim()).filter(Boolean), private: priv || undefined, taxSection: tax || undefined,
     };
   }
@@ -527,9 +540,17 @@ function EditSheet({ tx, data, onClose }: { tx: Transaction; data: Data; onClose
               {TAX_SECTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
           </label>
-          <label className="col-span-2"><span className="label">Notes</span>
-            <textarea className="field h-auto min-h-[72px] py-2.5" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" />
+          <label className="col-span-2"><span className="label">For what?</span>
+            <textarea className="field h-auto min-h-[72px] py-2.5" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="What it was for, who it was with, anything you want to remember" />
           </label>
+          {type !== 'transfer' && (
+            <label className="col-span-2"><span className="label">{type === 'income' ? 'Received as' : 'Paid with'}</span>
+              <select className="field" value={method} onChange={(e) => setMethod(e.target.value)}>
+                <option value="">Not set</option>
+                {PAYMENT_METHODS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+              </select>
+            </label>
+          )}
           <label className="col-span-2"><span className="label">Tags</span>
             <input className="field" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="Separate with commas, e.g. holiday, school" />
           </label>

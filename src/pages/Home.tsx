@@ -12,6 +12,7 @@ import {
 } from '../lib/finance';
 import { useUI } from '../store/ui';
 import { APP_LOCALE } from '../lib/locale';
+import { InstallNudge } from '../components/InstallApp';
 
 const CARD_NAMES: Record<string, string> = {
   flow: 'Cash-flow river', budgets: 'Budgets', bills: 'Upcoming bills', goals: 'Goals', trend: 'Income vs spending', networth: 'Net worth', insights: 'Insights',
@@ -226,6 +227,8 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
           </div>
         </div>
       </section>
+
+      <InstallNudge />
 
       <div className="grid lg:grid-cols-2 gap-6">
         {order.filter((c) => !c.hidden && cards[c.id]).map((c) => <div key={c.id} className={`min-w-0 ${c.id === 'flow' ? 'lg:col-span-2' : ''}`}>{cards[c.id]}</div>)}

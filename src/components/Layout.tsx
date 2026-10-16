@@ -6,6 +6,8 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useData, useProfile } from '../db/hooks';
 import { useUI } from '../store/ui';
 import { Avatar, Sheet } from './ui';
+import { AppearancePicker } from './AppearancePicker';
+import { SyncBadge } from './SyncBadge';
 import iconUrl from '../assets/icon.svg';
 
 export const NAV = [
@@ -73,6 +75,7 @@ export function Layout({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <div className="mt-auto space-y-2">
+          <SyncBadge />
           <ViewingAs />
           <button className="btn-ghost w-full justify-start text-muted" onClick={toggleHide} aria-pressed={hideAmounts}>
             {hideAmounts ? <Eye size={18} /> : <EyeOff size={18} />} {hideAmounts ? 'Show amounts' : 'Hide amounts'}
@@ -121,6 +124,7 @@ export function Layout({ children }: { children: ReactNode }) {
             </NavLink>
           ))}
         </div>
+        <div className="mt-5 pt-4 border-t border-line/70"><AppearancePicker compact /></div>
         <div className="mt-4"><ViewingAs /></div>
       </Sheet>
     </div>

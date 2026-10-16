@@ -14,6 +14,20 @@ npm run preview    # serve the production build
 npm run build:embed  # one self-contained page (dist-embed/tandem.html) for single-page hosts
 ```
 
+## Phones (iPhone and Android)
+
+Tandem is an installable web app: one codebase that runs full screen from the home screen on both platforms, works offline, and asks the browser to keep its data rather than clear it.
+
+- **iPhone or iPad:** open it in Safari → Share → **Add to Home Screen**.
+- **Android:** open it in Chrome → ⋮ → **Install app**. Chrome may also offer it on its own.
+- **Hosting your own install link:** merge to `main` and turn on GitHub Pages (Settings → Pages → Source: GitHub Actions). The `pages.yml` workflow publishes it at `https://<you>.github.io/finance-app/`.
+
+## Memory, sign-in and sync
+
+- **On the device:** everything is saved in the browser's database (IndexedDB) and survives restarts. Data is never reset unless you choose **Erase everything**.
+- **Shared Claude link:** your Claude account is the sign-in. Your household is saved privately under your account, so it follows you to any phone or computer where you open the link. Nobody else can read it, including the person who shared the link.
+- **Moving data from the standalone app:** Settings → Data and backup → **Send to email or Drive** shares an encrypted backup through the phone's share sheet. Restore it on the new device with your passphrase.
+
 ## Currencies
 
 Tandem works in any ISO 4217 currency the browser knows (about 300). Pick one during setup or in Settings; the default comes from your device's region.
@@ -32,16 +46,16 @@ Shortcuts on desktop: `N` adds an entry, `/` jumps to search.
 | Area | Highlights |
 |---|---|
 | Home | Safe-to-spend today, an interactive cash-flow river (income → categories → kept), cards you can reorder or hide, a kid-friendly home with savings jars |
-| Quick add | Keypad-first sheet with a built-in calculator (`250+120×2`), suggestions by time of day and history, favourites, per-member splits, undo |
+| Quick add | Keypad-first sheet with a built-in calculator (`250+120×2`), "For what?" notes, how you paid (cash, card, online/UPI, transfer, wallet, cheque), tags, suggestions by time of day, favourites, per-member splits, undo |
 | Activity | Instant search, filters, bulk edit, CSV export, a 30-day trash |
 | Budgets | Envelope, zero-based, 50/30/20 or simple caps; rollover; burn-rate warnings; event budgets |
 | Bills | Calendar, recurring rules with auto-post, subscription detector with price-change alerts, reminders |
 | Goals & debts | Goal projections, emergency-fund calculator, EMI and amortisation, prepayment simulator, snowball vs avalanche, IOUs |
 | Net worth | Holdings, allocation, reconcile mode, credit utilisation |
-| Insights | Health score (0–100) with its parts shown, 30/60/90-day forecast, what-if sliders, anomalies, a shareable monthly story |
+| Insights | Ask about your money (Claude, from aggregated totals only), a year-in-spending heatmap with no-spend streaks, health score (0–100) with its parts shown, 30/60/90-day forecast, what-if sliders, anomalies, a shareable monthly story |
 | Inbox & import | Review inbox, bank-alert/SMS parser, CSV and OFX import with duplicate detection, voice entry |
 | Family | Roles, who-spent-what, pocket money and chores, split and settle |
-| Settings | Themes (light, dark, high contrast), accent colour, PIN lock, encrypted backup and restore |
+| Settings | Six colour schemes × light/dark (plus high contrast), PIN lock, account sync status, install guide, encrypted backup, restore and share-to-email |
 
 ## Architecture
 

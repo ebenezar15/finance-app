@@ -1,7 +1,7 @@
-import { Check, Cloud, Download, KeyRound, Lock, Shield, Upload } from 'lucide-react';
+import { Cloud, Download, Mail, Smartphone, KeyRound, Lock, Shield, Upload } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useState, type ReactNode } from 'react';
-import { Panel, Segmented } from '../components/ui';
+import { Panel } from '../components/ui';
 import type { PinRecord } from '../components/Lock';
 import { snapshot, exportEncrypted, importEncrypted } from '../db/backup';
 import { db, setSetting } from '../db/db';
@@ -12,8 +12,11 @@ import { hashPin, type Envelope } from '../lib/crypto';
 import { toCSV } from '../lib/csv';
 import { isoDate } from '../lib/dates';
 import { CurrencySelect } from '../components/CurrencySelect';
-import { saveFile } from '../lib/download';
-import { askConfirm, useUI, type Theme } from '../store/ui';
+import { AppearancePicker } from '../components/AppearancePicker';
+import { InstallSteps } from '../components/InstallApp';
+import { SyncBadge } from '../components/SyncBadge';
+import { canShareFiles, saveFile, shareFile } from '../lib/download';
+import { askConfirm, useUI } from '../store/ui';
 import { APP_LOCALE } from '../lib/locale';
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleDateString(APP_LOCALE, { month: 'long' }));
@@ -22,10 +25,6 @@ const STYLES: { value: BudgetStyle; label: string }[] = [
   { value: 'zero-based', label: 'Zero-based (give every unit a job)' },
   { value: '50-30-20', label: '50/30/20 (needs, wants, savings)' },
   { value: 'caps', label: 'Spending caps (limits on a few categories)' },
-];
-const ACCENTS = [
-  { c: '#0F4C5C', name: 'Deep teal' }, { c: '#3346D3', name: 'Royal blue' }, { c: '#1F7A4D', name: 'Forest green' },
-  { c: '#8A3FFC', name: 'Violet' }, { c: '#B4562B', name: 'Terracotta' }, { c: '#334155', name: 'Slate' },
 ];
 interface Online { prices: boolean; ai: boolean; aiKey?: string }
 
@@ -55,7 +54,7 @@ export default function Settings() {
   return (
     <div className="space-y-6 pt-2 max-w-3xl">
       <div>
-        <p className="sub font-semibold">Everything stays on this device</p>
+        <p className="sub font-semibold">{import.meta.env.VITE_EMBED === '1' ? 'Private to your account' : 'Everything stays on this device'}</p>
         <h1 className="h1">Settings</h1>
       </div>
       <ProfilePanel key={JSON.stringify([profile.appName, profile.primaryUser, profile.currency, profile.fyStartMonth, profile.budgetStyle])} profile={profile} />
@@ -63,11 +62,16 @@ export default function Settings() {
       <Security />
       <Backup currency={profile.currency} />
       <DemoData currency={profile.currency} />
-      <Panel title={<span className="flex items-center gap-2"><Cloud size={18} /> Sync</span>}>
-        <p className="text-sm">Sync between devices (end-to-end encrypted) is coming. Until then, move data with an encrypted backup file.</p>
-        <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-sunk px-3 h-8 text-[13px] font-semibold text-muted">
-          <span className="h-2 w-2 rounded-full bg-muted" aria-hidden /> Not syncing — data lives only on this device
+      <Panel title={<span className="flex items-center gap-2"><Cloud size={18} /> Sync & sign-in</span>}>
+        <SyncBadge detailed />
+        <p className="sub mt-3">
+          {import.meta.env.VITE_EMBED === '1'
+            ? 'You’re signed in with your Claude account. Your household is saved privately to it, so it’s there on any phone or computer where you open this link. Nobody else, including whoever shared the link, can see it.'
+            : 'This copy keeps everything on this device. To move it to a new phone, send yourself an encrypted backup (Data and backup) and restore it there.'}
         </p>
+      </Panel>
+      <Panel title={<span className="flex items-center gap-2"><Smartphone size={18} /> Install on your phone</span>}>
+        <InstallSteps />
       </Panel>
       <Privacy />
       <Panel title="About">
@@ -118,25 +122,10 @@ function ProfilePanel({ profile }: { profile: Profile }) {
 /* ───────────────────────── Appearance ───────────────────────── */
 
 function Appearance() {
-  const { theme, setTheme, accent, setAccent, hideAmounts, toggleHide } = useUI();
+  const { hideAmounts, toggleHide } = useUI();
   return (
     <Panel title="Appearance">
-      <p className="label">Theme</p>
-      <Segmented<Theme> label="Theme" value={theme} onChange={setTheme} options={[
-        { value: 'system', label: 'System' }, { value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }, { value: 'contrast', label: 'High contrast' },
-      ]} />
-      <fieldset className="mt-5">
-        <legend className="label">Accent colour</legend>
-        <div className="flex flex-wrap gap-3">
-          {ACCENTS.map((a) => (
-            <button key={a.c} type="button" aria-label={a.name} aria-pressed={accent === a.c} title={a.name} onClick={() => setAccent(a.c)}
-              className="h-10 w-10 rounded-full grid place-items-center" style={{ background: a.c, boxShadow: accent === a.c ? '0 0 0 2px rgb(var(--surface)), 0 0 0 4px rgb(var(--ink))' : undefined }}>
-              {accent === a.c && <Check size={18} className="text-white" />}
-            </button>
-          ))}
-        </div>
-        <p className="text-xs text-muted mt-2">{ACCENTS.find((a) => a.c === accent)?.name ?? 'Custom'}. The accent applies to the light theme; dark and high contrast keep their own tuned colours.</p>
-      </fieldset>
+      <AppearancePicker />
       <div className="mt-3 divide-y divide-line/70">
         <Toggle id="hide" checked={hideAmounts} onChange={toggleHide} label="Hide amounts" hint="Blurs amounts until you hover or tap them. Handy in public." />
         <p className="text-xs text-muted py-3">Reduce motion: Tandem follows your device’s reduce-motion setting and turns animations off automatically.</p>
@@ -210,16 +199,21 @@ function Backup({ currency }: { currency: string }) {
   const [rErr, setRErr] = useState('');
   const stale = last === null || (last !== undefined && Date.now() - last > 30 * 86400_000);
 
-  const backup = async () => {
+  const backup = async (via: 'download' | 'share' = 'download') => {
     if (p1.length < 8) return setErr('Use at least 8 characters.');
     if (p1 !== p2) return setErr('The passphrases don’t match.');
     setErr(''); setBusy(true);
     try {
       const env = await exportEncrypted(p1);
-      download(`tandem-${isoDate(new Date())}.tandem`, new Blob([JSON.stringify(env)], { type: 'application/json' }));
+      const name = `tandem-${isoDate(new Date())}.tandem`;
+      const blob = new Blob([JSON.stringify(env)], { type: 'application/json' });
+      const ok = via === 'share'
+        ? await shareFile(name, blob, 'My Tandem backup. It’s encrypted; open it in Tandem → Settings → Restore with your passphrase.')
+        : await download(name, blob);
+      if (!ok) return;
       await setSetting('lastBackup', Date.now());
       setP1(''); setP2('');
-      toast('Encrypted backup downloaded. Keep the passphrase somewhere safe.');
+      toast(via === 'share' ? 'Backup shared. Keep the passphrase somewhere safe.' : 'Encrypted backup downloaded. Keep the passphrase somewhere safe.');
     } catch { setErr('The backup could not be created on this device.'); }
     finally { setBusy(false); }
   };
@@ -267,7 +261,10 @@ function Backup({ currency }: { currency: string }) {
         <div><label className="label" htmlFor="bk-1">Passphrase (at least 8 characters)</label><input id="bk-1" className="field" type="password" autoComplete="new-password" value={p1} onChange={(e) => setP1(e.target.value)} /></div>
         <div><label className="label" htmlFor="bk-2">Enter it again</label><input id="bk-2" className="field" type="password" autoComplete="new-password" value={p2} onChange={(e) => setP2(e.target.value)} /></div>
         {err && <p className="text-sm text-bad font-semibold sm:col-span-2" role="alert">{err}</p>}
-        <div className="sm:col-span-2"><button type="submit" className="btn-primary" disabled={busy}><Download size={16} /> Download encrypted backup</button></div>
+        <div className="sm:col-span-2 flex flex-wrap gap-2">
+          <button type="submit" className="btn-primary" disabled={busy}><Download size={16} /> Download encrypted backup</button>
+          {canShareFiles() && <button type="button" className="btn-soft" disabled={busy} onClick={() => backup('share')}><Mail size={16} /> Send to email or Drive</button>}
+        </div>
       </form>
 
       <h3 className="font-bold text-sm mt-6">Restore from backup</h3>

@@ -1,0 +1,38 @@
+# Publishes the installable app (PWA) to GitHub Pages from the default branch.
+# One-time setup: repo Settings → Pages → Build and deployment → Source: "GitHub Actions".
+name: Deploy app to GitHub Pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npx vite build
+        env:
+          BASE_PATH: /${{ github.event.repository.name }}/
+      # Single-page app: serve index.html for deep links like /activity.
+      - run: cp dist/index.html dist/404.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deployment
+        uses: actions/deploy-pages@v4
