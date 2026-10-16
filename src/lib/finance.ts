@@ -176,7 +176,7 @@ export interface DetectedSubscription {
 
 /**
  * Subscription detector: same payee charged in ≥3 distinct months at a roughly monthly
- * cadence (25–35 days apart) with amounts within 15% of each other.
+ * cadence (25–35 days apart) with amounts within 25% of each other (so price rises are still caught).
  */
 export function detectSubscriptions(txs: Transaction[]): DetectedSubscription[] {
   const byPayee = new Map<string, Transaction[]>();
@@ -196,7 +196,7 @@ export function detectSubscriptions(txs: Transaction[]): DetectedSubscription[] 
     if (!monthly) continue;
     const amounts = list.map((t) => t.amount);
     const median = [...amounts].sort((a, b) => a - b)[Math.floor(amounts.length / 2)];
-    if (!amounts.every((a) => Math.abs(a - median) <= median * 0.15)) continue;
+    if (!amounts.every((a) => Math.abs(a - median) <= median * 0.25)) continue;
     const last = list[list.length - 1];
     const prev = list[list.length - 2];
     out.push({
@@ -372,17 +372,20 @@ export function forecast(
 /**
  * What can be spent today without breaking the month: liquid balance minus bills still due
  * this month minus goal set-asides, spread over the remaining days (today included).
+ * When budgets exist, it is also capped by what is left in them, whichever is lower.
  */
-export function safeToSpend(liquid: Minor, rules: RecurringRule[], goalsMonthly: Minor, now: Date) {
+export function safeToSpend(liquid: Minor, rules: RecurringRule[], goalsMonthly: Minor, now: Date, budgetLeft?: Minor) {
   const dim = daysInMonth(now);
   const end = new Date(now.getFullYear(), now.getMonth(), dim);
   const rest = rules.flatMap((r) => occurrences(r, addDays(new Date(isoDate(now)), 1), end).map(() => r));
   const billsLeft = rest.filter((r) => r.type === 'expense').reduce((s, r) => s + r.amount, 0);
   const incomeLeft = rest.filter((r) => r.type === 'income').reduce((s, r) => s + r.amount, 0);
-  const pool = liquid - billsLeft - goalsMonthly + incomeLeft;
+  const cashPool = liquid - billsLeft - goalsMonthly + incomeLeft;
+  const limitedBy: 'cash' | 'budget' = budgetLeft !== undefined && budgetLeft < cashPool ? 'budget' : 'cash';
+  const pool = limitedBy === 'budget' ? budgetLeft! : cashPool;
   const daysLeft = dim - now.getDate() + 1;
   const today = Math.max(0, Math.floor(pool / daysLeft));
-  return { today, week: Math.max(0, Math.min(pool, today * 7)), pool, billsLeft, incomeLeft, daysLeft };
+  return { today, week: Math.max(0, Math.min(pool, today * 7)), pool, billsLeft, incomeLeft, daysLeft, limitedBy };
 }
 
 /* ───────────────────────── Health score ───────────────────────── */

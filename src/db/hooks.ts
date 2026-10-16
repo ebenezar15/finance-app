@@ -45,13 +45,16 @@ export function useData() {
     const liquid = raw.accounts
       .filter((a) => !a.archived && (a.type === 'bank' || a.type === 'cash' || a.type === 'wallet'))
       .reduce((s, a) => s + (balances.get(a.id) ?? 0), 0);
+    const spendable = raw.accounts
+      .filter((a) => !a.archived && !a.savings && (a.type === 'bank' || a.type === 'cash' || a.type === 'wallet'))
+      .reduce((s, a) => s + (balances.get(a.id) ?? 0), 0);
     const loanOut = raw.loans.map((l) => ({ loan: l, ...loanSummary(l) }));
     const assets = raw.accounts.filter((a) => !a.archived && a.type !== 'credit' && a.type !== 'loan').reduce((s, a) => s + Math.max(0, balances.get(a.id) ?? 0), 0)
       + raw.holdings.reduce((s, h) => s + h.value, 0);
     const cardDebt = raw.accounts.filter((a) => a.type === 'credit').reduce((s, a) => s + Math.max(0, -(balances.get(a.id) ?? 0)), 0);
     const liabilities = cardDebt + loanOut.reduce((s, l) => s + l.outstanding, 0);
     return {
-      ...raw, all, txs, balances, liquid, assets, liabilities, netWorth: assets - liabilities, loanOut, viewer: limited ? viewer : undefined,
+      ...raw, all, txs, balances, liquid, spendable, assets, liabilities, netWorth: assets - liabilities, loanOut, viewer: limited ? viewer : undefined,
       review: all.filter((t) => t.needsReview),
       cat: (id?: string) => raw.categories.find((c) => c.id === id),
       acct: (id?: string) => raw.accounts.find((a) => a.id === id),

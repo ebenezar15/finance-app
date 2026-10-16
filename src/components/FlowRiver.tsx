@@ -13,13 +13,13 @@ export function FlowRiver({ ins, outs, month }: { ins: { name: string; value: nu
   const fmt = useFmt();
   const nav = useNavigate();
   const ref = useRef<HTMLDivElement>(null);
-  const [w, setW] = useState(640);
+  const [w, setW] = useState(0);
   const [active, setActive] = useState<string | null>(null);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const ro = new ResizeObserver(([e]) => setW(Math.max(300, e.contentRect.width)));
+    const ro = new ResizeObserver(([e]) => setW(Math.max(280, Math.floor(e.contentRect.width))));
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -44,8 +44,17 @@ export function FlowRiver({ ins, outs, month }: { ins: { name: string; value: nu
       let y = (H - used) / 2;
       return nodes.map((n) => { const h = Math.max(2, n.value * k); const r = { ...n, x, y, h }; y += h + gap; return r; });
     };
-    const L = stack(sources, xL);
-    const R = stack(outs, xR);
+    // Labels never overlap: each sits at its node's centre unless that would collide with the
+    // previous label, in which case it's pushed down (and pulled back up if it runs off the end).
+    const placeLabels = <T extends { y: number; h: number }>(nodes: T[], space: number) => {
+      const ys = nodes.map((n) => n.y + n.h / 2);
+      for (let i = 1; i < ys.length; i++) ys[i] = Math.max(ys[i], ys[i - 1] + space);
+      const overflow = ys.length ? ys[ys.length - 1] - (H - space / 2) : 0;
+      if (overflow > 0) for (let i = ys.length - 1; i >= 0; i--) ys[i] = Math.min(ys[i], (i === ys.length - 1 ? H - space / 2 : ys[i + 1] - space));
+      return nodes.map((n, i) => ({ ...n, ly: Math.max(space / 2, ys[i]) }));
+    };
+    const L = placeLabels(stack(sources, xL), 34);
+    const R = placeLabels(stack(outs, xR), 34);
     const centreH = total * k;
     const cy = (H - centreH) / 2;
     const mid = (a: number, b: number) => (a + b) / 2;
@@ -69,8 +78,8 @@ export function FlowRiver({ ins, outs, month }: { ins: { name: string; value: nu
   const share = (v: number) => (totalIn ? `${Math.round((v / totalIn) * 100)}% of income` : '');
 
   return (
-    <div ref={ref} className="w-full">
-      <svg width={w} height={H} viewBox={`0 0 ${w} ${H}`} role="img" aria-label="Cash flow for the month: income on the left, spending categories on the right" className="block overflow-visible">
+    <div ref={ref} className="w-full min-w-0 overflow-hidden">
+      {w > 0 && <svg width={w} height={H} viewBox={`0 0 ${w} ${H}`} role="img" aria-label="Cash flow for the month: income on the left, spending categories on the right" className="block overflow-visible">
         <defs>
           {outLinks.map((l) => (
             <linearGradient key={l.id} id={`g-${l.id}`} x1="0" x2="1">
@@ -96,8 +105,8 @@ export function FlowRiver({ ins, outs, month }: { ins: { name: string; value: nu
         {L.map((n) => (
           <g key={n.id} onMouseEnter={() => setActive(n.id)} onMouseLeave={() => setActive(null)}>
             <rect x={n.x} y={n.y} width={nodeW} height={n.h} rx={3} fill={n.colour} />
-            <text x={n.x + nodeW + 8} y={n.y + n.h / 2 - 2} className="fill-ink text-[12px] font-bold" style={{ paintOrder: 'stroke', stroke: 'rgb(var(--surface))', strokeWidth: 4 }} dominantBaseline="auto">{n.name}</text>
-            <text x={n.x + nodeW + 8} y={n.y + n.h / 2 + 12} className="fill-muted text-[11px] num money" style={{ paintOrder: 'stroke', stroke: 'rgb(var(--surface))', strokeWidth: 4 }}>{fmt(n.value, { compact: narrow })}</text>
+            <text x={n.x + nodeW + 8} y={n.ly - 2} className="fill-ink text-[12px] font-bold" style={{ paintOrder: 'stroke', stroke: 'rgb(var(--surface))', strokeWidth: 4 }} dominantBaseline="auto">{n.name}</text>
+            <text x={n.x + nodeW + 8} y={n.ly + 12} className="fill-muted text-[11px] num money" style={{ paintOrder: 'stroke', stroke: 'rgb(var(--surface))', strokeWidth: 4 }}>{fmt(n.value, { compact: narrow })}</text>
           </g>
         ))}
         {R.map((n) => (
@@ -105,14 +114,17 @@ export function FlowRiver({ ins, outs, month }: { ins: { name: string; value: nu
             onFocus={() => setActive(n.id)} onBlur={() => setActive(null)} onMouseEnter={() => setActive(n.id)} onMouseLeave={() => setActive(null)}
             onClick={() => go(n.id)} onKeyDown={(e) => e.key === 'Enter' && go(n.id)} style={{ cursor: n.id === 'saved' ? 'default' : 'pointer', outline: 'none' }}>
             <rect x={n.x} y={n.y} width={nodeW} height={n.h} rx={3} fill={n.colour} />
-            <text x={n.x + nodeW + 10} y={n.y + n.h / 2 - 2} className={`text-[13px] font-bold ${active === n.id ? 'fill-primary' : 'fill-ink'}`}>{n.name}</text>
-            <text x={n.x + nodeW + 10} y={n.y + n.h / 2 + 13} className="fill-muted text-[12px] num">
+            {Math.abs(n.ly - (n.y + n.h / 2)) > 3 && (
+              <path d={`M${n.x + nodeW + 1},${n.y + n.h / 2} C${n.x + nodeW + 6},${n.y + n.h / 2} ${n.x + nodeW + 2},${n.ly + 4} ${n.x + nodeW + 7},${n.ly + 4}`} fill="none" stroke="rgb(var(--line))" strokeWidth={1.5} />
+            )}
+            <text x={n.x + nodeW + 10} y={n.ly - 2} className={`text-[13px] font-bold ${active === n.id ? 'fill-primary' : 'fill-ink'}`}>{n.name}</text>
+            <text x={n.x + nodeW + 10} y={n.ly + 13} className="fill-muted text-[12px] num">
               <tspan className="money">{fmt(n.value, { compact: narrow })}</tspan>
               {!narrow && <tspan dx={8} opacity={active === n.id ? 1 : 0.7}>{share(n.value)}</tspan>}
             </text>
           </g>
         ))}
-      </svg>
+      </svg>}
     </div>
   );
 }

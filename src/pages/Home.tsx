@@ -5,6 +5,7 @@ import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { FlowRiver } from '../components/FlowRiver';
 import { Bar, CatIcon, Money, Panel, Ring, Sheet, useFmt } from '../components/ui';
 import { saveProfile, useData, useProfile, type Data } from '../db/hooks';
+import type { Profile } from '../db/types';
 import { addMonths, daysInMonth, monthKey, monthLabel, relativeDay, startOfMonth } from '../lib/dates';
 import {
   budgetStatus, cashFlowGraph, detectAnomalies, goalPlan, monthTotals, monthlySeries, safeToSpend, upcomingBills,
@@ -20,11 +21,10 @@ export default function Home() {
   const profile = useProfile();
   if (!data || !profile) return null;
   if (data.viewer) return <KidsHome data={data} />;
-  return <Dashboard data={data} />;
+  return <Dashboard data={data} profile={profile} />;
 }
 
-function Dashboard({ data }: { data: Data }) {
-  const profile = useProfile()!;
+function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
   const fmt = useFmt();
   const openQuickAdd = useUI((s) => s.openQuickAdd);
   const now = useMemo(() => new Date(), []);
@@ -34,12 +34,13 @@ function Dashboard({ data }: { data: Data }) {
   const mk = monthKey(viewMonth);
 
   const goalsMonthly = data.goals.filter((g) => !g.memberId).reduce((s, g) => s + goalPlan(g, now).needed, 0);
-  const safe = safeToSpend(data.liquid, data.recurring, Math.min(goalsMonthly, Math.max(0, data.liquid / 4)), now);
+  const statuses = data.budgets.filter((b) => !b.memberId).map((b) => budgetStatus(b, data.txs, now));
+  const budgetLeft = statuses.length ? statuses.reduce((s, b) => s + Math.max(0, b.remaining), 0) : undefined;
+  const safe = safeToSpend(data.spendable, data.recurring, Math.min(goalsMonthly, Math.max(0, data.spendable / 4)), now, budgetLeft);
   const totals = monthTotals(data.txs, monthKey(now));
   const prevTotals = monthTotals(data.txs, monthKey(addMonths(now, -1)));
   const flow = useMemo(() => cashFlowGraph(data.txs, data.categories, mk), [data.txs, data.categories, mk]);
   const pace = now.getDate() / daysInMonth(now);
-  const statuses = data.budgets.filter((b) => !b.memberId).map((b) => budgetStatus(b, data.txs, now));
   const bills = upcomingBills(data.recurring.filter((r) => r.type === 'expense'), now, 7);
   const series = monthlySeries(data.txs, now, 6);
   const anomalies = detectAnomalies(data.txs, data.categories, now);
@@ -49,11 +50,11 @@ function Dashboard({ data }: { data: Data }) {
 
   const cards: Record<string, JSX.Element> = {
     flow: (
-      <Panel className="lg:col-span-2" title={<span className="flex items-center gap-2">Where the money went</span>}
+      <Panel className="lg:col-span-2" title="Where the money went"
         action={
           <div className="flex items-center gap-1">
             <button className="btn-ghost h-9 w-9 p-0" aria-label="Previous month" onClick={() => setOffset((o) => o - 1)}><ChevronLeft size={18} /></button>
-            <span className="text-sm font-semibold w-32 text-center">{monthLabel(viewMonth)}</span>
+            <span className="text-sm font-semibold min-w-[5.5rem] text-center">{viewMonth.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</span>
             <button className="btn-ghost h-9 w-9 p-0" aria-label="Next month" disabled={offset >= 0} onClick={() => setOffset((o) => o + 1)}><ChevronRight size={18} /></button>
           </div>
         }>
@@ -207,7 +208,9 @@ function Dashboard({ data }: { data: Data }) {
           <p className="text-sm font-bold text-muted">Safe to spend today</p>
           <Money value={safe.today} className="display text-[56px] md:text-[72px] block mt-2 text-primary" />
           <p className="text-sm text-muted mt-2 max-w-sm">
-            After <b className="text-ink money num">{fmt(safe.billsLeft)}</b> of bills still due and your goal savings, across the {safe.daysLeft} days left this month.
+            {safe.limitedBy === 'budget'
+              ? <>What’s left in your budgets, spread across the {safe.daysLeft} days left this month. Bills of <b className="text-ink money num">{fmt(safe.billsLeft)}</b> are already set aside.</>
+              : <>After <b className="text-ink money num">{fmt(safe.billsLeft)}</b> of bills still due and your goal savings, across the {safe.daysLeft} days left this month.</>}
           </p>
           <div className="mt-5 flex gap-2 flex-wrap">
             <button className="btn-primary" onClick={() => openQuickAdd('expense')}>Log a spend</button>
@@ -218,13 +221,13 @@ function Dashboard({ data }: { data: Data }) {
           <HeroStat label="Income this month" value={totals.income} prev={prevTotals.income} good="up" />
           <HeroStat label="Spent this month" value={totals.expense} prev={prevTotals.expense} good="down" pace={pace} />
           <div className="col-span-2 md:col-span-1 px-6 py-4 border-t border-line/70 flex items-center justify-between">
-            <span className="text-sm font-semibold text-muted">Cash on hand</span><Money value={data.liquid} className="font-extrabold" />
+            <span className="text-sm font-semibold text-muted">Everyday accounts</span><Money value={data.spendable} className="font-extrabold" />
           </div>
         </div>
       </section>
 
       <div className="grid lg:grid-cols-2 gap-6">
-        {order.filter((c) => !c.hidden && cards[c.id]).map((c) => <div key={c.id} className={c.id === 'flow' ? 'lg:col-span-2' : ''}>{cards[c.id]}</div>)}
+        {order.filter((c) => !c.hidden && cards[c.id]).map((c) => <div key={c.id} className={`min-w-0 ${c.id === 'flow' ? 'lg:col-span-2' : ''}`}>{cards[c.id]}</div>)}
       </div>
 
       <Sheet open={customise} onOpenChange={setCustomise} title="Customise home" description="Reorder or hide cards. Changes save instantly.">
@@ -256,7 +259,7 @@ function HeroStat({ label, value, prev, good, pace }: { label: string; value: nu
       <Money value={value} className="text-[26px] font-extrabold tracking-tight block" />
       {cmp > 0 && (
         <p className={`text-xs font-semibold flex items-center gap-1 ${better ? 'text-good' : 'text-bad'}`}>
-          {diff >= 0 ? <ArrowUp size={12} /> : <ArrowDown size={12} />}<span className="money num">{fmt(Math.abs(diff))}</span> vs {pace ? 'same point last month' : 'last month'}
+          {diff >= 0 ? <ArrowUp size={12} /> : <ArrowDown size={12} />}<span className="money num">{fmt(Math.abs(diff))}</span> <span title={pace ? 'Compared with the same point last month' : undefined}>vs last month</span>
         </p>
       )}
     </div>

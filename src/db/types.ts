@@ -28,6 +28,7 @@ export interface Account {
   icon: string;
   archived: boolean;
   last4?: string;
+  savings?: boolean; // excluded from safe-to-spend
   creditLimit?: Minor;
   dueDay?: number;
 }

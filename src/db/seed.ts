@@ -67,8 +67,8 @@ export async function seedDemo(currency = 'USD', now = new Date()) {
     { id: 'm-leo', name: 'Leo', role: 'child', age: 'child', colour: '#2BA37B', allowance: m(15) },
   ];
   const accounts: Account[] = [
-    { id: 'a-checking', name: 'Everyday checking', type: 'bank', currency, openingBalance: m(4200), ownerIds: ['m-alex', 'm-sam'], shared: true, colour: '#0F4C5C', icon: 'landmark', archived: false, last4: '1234' },
-    { id: 'a-savings', name: 'High-yield savings', type: 'bank', currency, openingBalance: m(9500), ownerIds: ['m-alex', 'm-sam'], shared: true, colour: '#2BA37B', icon: 'piggy-bank', archived: false, last4: '5521' },
+    { id: 'a-checking', name: 'Everyday checking', type: 'bank', currency, openingBalance: m(2600), ownerIds: ['m-alex', 'm-sam'], shared: true, colour: '#0F4C5C', icon: 'landmark', archived: false, last4: '1234' },
+    { id: 'a-savings', name: 'High-yield savings', type: 'bank', savings: true, currency, openingBalance: m(9500), ownerIds: ['m-alex', 'm-sam'], shared: true, colour: '#2BA37B', icon: 'piggy-bank', archived: false, last4: '5521' },
     { id: 'a-card', name: 'Rewards credit card', type: 'credit', currency, openingBalance: 0, ownerIds: ['m-alex'], shared: false, colour: '#5B6CF0', icon: 'credit-card', archived: false, last4: '9876', creditLimit: m(8000), dueDay: 18 },
     { id: 'a-cash', name: 'Cash wallet', type: 'cash', currency, openingBalance: m(120), ownerIds: ['m-sam'], shared: true, colour: '#E8A33D', icon: 'wallet', archived: false },
     { id: 'a-home', name: 'Home (estimated)', type: 'asset', currency, openingBalance: m(310000), ownerIds: ['m-alex', 'm-sam'], shared: true, colour: '#7C8798', icon: 'home', archived: false },
@@ -76,8 +76,8 @@ export async function seedDemo(currency = 'USD', now = new Date()) {
 
   const start = addMonths(startOfMonth(now), -11);
   const rules: RecurringRule[] = [
-    { id: 'r-salary-a', name: 'Salary — Alex', type: 'income', amount: m(5200), estimated: false, categoryId: 'salary', accountId: 'a-checking', freq: 'monthly', day: 1, startDate: isoDate(start), autoPost: true, isSubscription: false },
-    { id: 'r-salary-s', name: 'Salary — Sam', type: 'income', amount: m(3400), estimated: false, categoryId: 'salary', accountId: 'a-checking', freq: 'monthly', day: 15, startDate: isoDate(start), autoPost: true, isSubscription: false },
+    { id: 'r-salary-a', name: 'Salary — Alex', type: 'income', amount: m(4650), estimated: false, categoryId: 'salary', accountId: 'a-checking', freq: 'monthly', day: 1, startDate: isoDate(start), autoPost: true, isSubscription: false },
+    { id: 'r-salary-s', name: 'Salary — Sam', type: 'income', amount: m(3050), estimated: false, categoryId: 'salary', accountId: 'a-checking', freq: 'monthly', day: 15, startDate: isoDate(start), autoPost: true, isSubscription: false },
     { id: 'r-mortgage', name: 'Mortgage payment', type: 'expense', amount: m(1650), estimated: false, categoryId: 'loan', accountId: 'a-checking', freq: 'monthly', day: 5, startDate: isoDate(start), autoPost: true, isSubscription: false },
     { id: 'r-power', name: 'City Power & Light', type: 'expense', amount: m(140), estimated: true, categoryId: 'utilities', accountId: 'a-checking', freq: 'monthly', day: 12, startDate: isoDate(start), autoPost: false, isSubscription: false },
     { id: 'r-internet', name: 'FiberNet broadband', type: 'expense', amount: m(65), estimated: false, categoryId: 'utilities', accountId: 'a-card', freq: 'monthly', day: 9, startDate: isoDate(start), autoPost: true, isSubscription: true },
@@ -108,7 +108,9 @@ export async function seedDemo(currency = 'USD', now = new Date()) {
   };
   const perMonth: Record<string, number> = { groceries: 8, dining: 9, transport: 7, shopping: 4, entertainment: 2, health: 1, childcare: 2, gifts: 1 };
 
+  let lastCardSpend = m(1700);
   for (let mo = 0; mo < 12; mo++) {
+    const cardStart = txs.length;
     const ms = addMonths(start, mo);
     const isCurrent = mo === 11;
     const lastDay = isCurrent ? now.getDate() : new Date(ms.getFullYear(), ms.getMonth() + 1, 0).getDate();
@@ -138,11 +140,13 @@ export async function seedDemo(currency = 'USD', now = new Date()) {
     // side income every other month
     if (mo % 2 === 0) add({ date: dayOf().toISOString(), amount: m(jitter(700)), type: 'income', accountId: 'a-checking', categoryId: 'freelance', payee: 'Design consulting', memberId: 'm-sam' });
     add({ date: new Date(ms.getFullYear(), ms.getMonth(), 28 > lastDay ? lastDay : 28).toISOString(), amount: m(jitter(31, 0.1)), type: 'income', accountId: 'a-savings', categoryId: 'interest', payee: 'Savings interest' });
-    // card bill paid from checking
+    // card bill: last month's statement, paid in full from checking on the 18th
     if (!isCurrent || now.getDate() > 18) {
-      add({ date: new Date(ms.getFullYear(), ms.getMonth(), 18, 10).toISOString(), amount: m(jitter(1900, 0.2)), type: 'transfer', accountId: 'a-checking', toAccountId: 'a-card', payee: 'Card payment' });
+      add({ date: new Date(ms.getFullYear(), ms.getMonth(), 18, 10).toISOString(), amount: lastCardSpend, type: 'transfer', accountId: 'a-checking', toAccountId: 'a-card', payee: 'Card payment' });
     }
-    add({ date: new Date(ms.getFullYear(), ms.getMonth(), Math.min(lastDay, 25), 10).toISOString(), amount: m(400), type: 'transfer', accountId: 'a-checking', toAccountId: 'a-savings', payee: 'Monthly savings sweep' });
+    if (!isCurrent || now.getDate() > 25) {
+      add({ date: new Date(ms.getFullYear(), ms.getMonth(), 25, 10).toISOString(), amount: m(900), type: 'transfer', accountId: 'a-checking', toAccountId: 'a-savings', payee: 'Monthly savings sweep' });
+    }
     // recurring postings
     for (const rule of rules) {
       const stepOk = rule.freq === 'monthly' || (rule.freq === 'quarterly' && mo % 3 === 0);
@@ -155,6 +159,7 @@ export async function seedDemo(currency = 'USD', now = new Date()) {
         memberId: rule.name.includes('Sam') ? 'm-sam' : rule.name.includes('Alex') ? 'm-alex' : undefined,
       });
     }
+    lastCardSpend = txs.slice(cardStart).filter((t) => t.accountId === 'a-card' && t.type === 'expense').reduce((s, t) => s + t.amount, 0);
   }
   // A duplicate + one large item recently, so anomalies have something to show
   const dupDate = addDays(now, -2);
@@ -174,9 +179,9 @@ export async function seedDemo(currency = 'USD', now = new Date()) {
   budgets.push({ id: 'b-maya-fun', categoryId: 'entertainment', amount: m(30), rollover: true, memberId: 'm-maya' });
 
   const goals: Goal[] = [
-    { id: 'g-emergency', name: 'Emergency fund', emoji: '🛟', target: m(30000), saved: m(17800), targetDate: isoDate(addMonths(now, 14)), priority: 1, contributions: [0, 1, 2, 3].map((i) => ({ date: isoDate(addMonths(now, -i)), amount: m(400) })) },
-    { id: 'g-college', name: 'College fund', emoji: '🎓', target: m(60000), saved: m(14200), targetDate: isoDate(addMonths(now, 96)), priority: 2, contributions: [0, 1, 2].map((i) => ({ date: isoDate(addMonths(now, -i)), amount: m(300) })) },
-    { id: 'g-japan', name: 'Japan 2027', emoji: '🗻', target: m(7500), saved: m(2100), targetDate: isoDate(addMonths(now, 10)), priority: 3, contributions: [{ date: isoDate(addMonths(now, -1)), amount: m(250) }] },
+    { id: 'g-emergency', name: 'Emergency fund', emoji: '🛟', target: m(30000), saved: m(17800), targetDate: isoDate(addMonths(now, 14)), priority: 1, contributions: [0, 1, 2].map((i) => ({ date: isoDate(addMonths(now, -i)), amount: m(900) })) },
+    { id: 'g-college', name: 'College fund', emoji: '🎓', target: m(60000), saved: m(14200), targetDate: isoDate(addMonths(now, 96)), priority: 2, contributions: [0, 1, 2].map((i) => ({ date: isoDate(addMonths(now, -i)), amount: m(500) })) },
+    { id: 'g-japan', name: 'Japan 2027', emoji: '🗻', target: m(7500), saved: m(2100), targetDate: isoDate(addMonths(now, 10)), priority: 3, contributions: [0, 1, 2].map((i) => ({ date: isoDate(addMonths(now, -i)), amount: m(300) })) },
     { id: 'g-maya-bike', name: 'New bike', emoji: '🚲', target: m(450), saved: m(180), targetDate: isoDate(addMonths(now, 6)), priority: 3, memberId: 'm-maya', contributions: [{ date: isoDate(addMonths(now, -1)), amount: m(20) }] },
     { id: 'g-leo-lego', name: 'Lego space set', emoji: '🚀', target: m(120), saved: m(74), targetDate: isoDate(addMonths(now, 3)), priority: 3, memberId: 'm-leo', contributions: [{ date: isoDate(addMonths(now, -1)), amount: m(10) }] },
   ];
