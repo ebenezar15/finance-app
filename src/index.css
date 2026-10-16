@@ -1,0 +1,97 @@
+@import '@fontsource-variable/manrope/wght.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design tokens. Channels are space-separated RGB so Tailwind alpha modifiers work. */
+:root {
+  --bg: 243 244 241;
+  --surface: 255 255 255;
+  --sunk: 234 237 232;
+  --ink: 23 32 46;
+  --muted: 92 103 118;
+  --line: 221 225 219;
+  --primary: 15 76 92;
+  --onprimary: 255 255 255;
+  --accent: 127 209 185;
+  --good: 31 140 104;
+  --warn: 196 127 22;
+  --bad: 201 55 82;
+  --indigo: 91 108 240;
+  --shadow: 0 1px 0 rgb(23 32 46 / .04), 0 8px 24px -12px rgb(15 76 92 / .18);
+  color-scheme: light;
+}
+:root[data-theme='dark'] {
+  --bg: 11 19 23;
+  --surface: 18 29 35;
+  --sunk: 8 14 17;
+  --ink: 229 236 238;
+  --muted: 146 161 170;
+  --line: 35 50 58;
+  --primary: 127 209 185;
+  --onprimary: 7 33 38;
+  --accent: 15 76 92;
+  --good: 88 204 160;
+  --warn: 242 180 90;
+  --bad: 245 112 134;
+  --indigo: 146 158 255;
+  --shadow: 0 0 0 1px rgb(255 255 255 / .03), 0 12px 32px -16px rgb(0 0 0 / .6);
+  color-scheme: dark;
+}
+:root[data-theme='contrast'] {
+  --bg: 255 255 255;
+  --surface: 255 255 255;
+  --sunk: 240 240 240;
+  --ink: 0 0 0;
+  --muted: 40 40 40;
+  --line: 0 0 0;
+  --primary: 0 58 72;
+  --onprimary: 255 255 255;
+  --accent: 0 58 72;
+  --good: 0 100 60;
+  --warn: 130 70 0;
+  --bad: 170 0 30;
+  --indigo: 40 40 180;
+  --shadow: none;
+}
+
+html { -webkit-tap-highlight-color: transparent; }
+body {
+  @apply bg-bg text-ink font-sans antialiased;
+  font-feature-settings: 'tnum' 0, 'cv11';
+  text-rendering: optimizeLegibility;
+}
+.num { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; letter-spacing: -0.01em; }
+.display { font-weight: 800; letter-spacing: -0.035em; line-height: 0.95; font-variant-numeric: tabular-nums; }
+
+:focus-visible { outline: 2px solid rgb(var(--primary)); outline-offset: 2px; border-radius: 6px; }
+
+@layer components {
+  .panel { @apply bg-surface rounded-[22px] border border-line/70; box-shadow: var(--shadow); }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 h-11 font-semibold text-sm transition-colors disabled:opacity-50 select-none; }
+  .btn-primary { @apply btn bg-primary text-onprimary hover:brightness-110 active:brightness-95; }
+  .btn-ghost { @apply btn text-ink hover:bg-sunk; }
+  .btn-soft { @apply btn bg-sunk text-ink hover:bg-line/60; }
+  .chip { @apply inline-flex items-center gap-1.5 rounded-full px-3 h-8 text-[13px] font-semibold border border-line bg-surface hover:bg-sunk transition-colors; }
+  .chip[aria-pressed='true'] { @apply bg-ink text-surface border-ink; }
+  .field { @apply w-full h-11 rounded-xl bg-sunk border border-transparent px-3.5 text-[15px] placeholder:text-muted/70 focus:border-primary focus:bg-surface outline-none transition-colors; }
+  .label { @apply block text-[13px] font-semibold text-muted mb-1.5; }
+  .h1 { @apply text-[28px] md:text-[34px] font-extrabold tracking-tight leading-tight; }
+  .h2 { @apply text-[17px] font-bold tracking-tight; }
+  .sub { @apply text-sm text-muted; }
+}
+
+.blurred .money { filter: blur(7px); transition: filter .2s; }
+.blurred .money:hover { filter: none; }
+
+@keyframes rise { from { opacity: 0; transform: translateY(8px) scale(.98) } to { opacity: 1; transform: none } }
+@keyframes flow { to { stroke-dashoffset: -40 } }
+@keyframes pop { 0% { transform: scale(.6); opacity: 0 } 60% { transform: scale(1.08); opacity: 1 } 100% { transform: scale(1) } }
+.animate-rise { animation: rise .35s cubic-bezier(.2,.8,.2,1) both; }
+.animate-pop { animation: pop .45s cubic-bezier(.2,.8,.2,1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+}
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }

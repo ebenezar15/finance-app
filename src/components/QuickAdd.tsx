@@ -1,0 +1,242 @@
+import { useLiveQuery } from 'dexie-react-hooks';
+import { Check, Delete, Split, Star, Sparkles } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { db, getSetting, setSetting } from '../db/db';
+import { saveTransaction, useData, useProfile } from '../db/hooks';
+import type { TxType } from '../db/types';
+import { quickSuggestions, suggestCategory } from '../lib/categorize';
+import { isoDate } from '../lib/dates';
+import { evalAmount, splitEvenly, toMinor } from '../lib/money';
+import { useUI } from '../store/ui';
+import { CatIcon, Segmented, Sheet, useFmt } from './ui';
+
+interface Fav { payee: string; amount: number; categoryId?: string }
+
+const KEYS = ['7', '8', '9', '÷', '4', '5', '6', '×', '1', '2', '3', '−', '.', '0', '⌫', '+'];
+
+export function QuickAdd() {
+  const { quickAdd, closeQuickAdd, toast } = useUI();
+  const data = useData();
+  const profile = useProfile();
+  const fmt = useFmt();
+  const favs = useLiveQuery(() => getSetting<Fav[]>('favourites', []), []) ?? [];
+
+  const [type, setType] = useState<TxType>('expense');
+  const [expr, setExpr] = useState('');
+  const [payee, setPayee] = useState('');
+  const [categoryId, setCategoryId] = useState<string | undefined>();
+  const [autoCat, setAutoCat] = useState<{ id: string; reason: string } | null>(null);
+  const [accountId, setAccountId] = useState('');
+  const [toAccountId, setToAccountId] = useState('');
+  const [memberId, setMemberId] = useState<string | undefined>();
+  const [date, setDate] = useState(isoDate(new Date()));
+  const [notes, setNotes] = useState('');
+  const [splitMembers, setSplitMembers] = useState<string[]>([]);
+  const [showMore, setShowMore] = useState(false);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    if (!quickAdd.open) return;
+    const d = quickAdd.draft ?? {};
+    setType((quickAdd.type as TxType) ?? 'expense');
+    setExpr(d.amount ? String((d.amount as number) / 100) : '');
+    setPayee((d.payee as string) ?? '');
+    setCategoryId(d.categoryId as string | undefined);
+    setDate((d.date as string) ?? isoDate(new Date()));
+    setNotes((d.notes as string) ?? '');
+    setSplitMembers([]); setShowMore(false); setDone(false); setAutoCat(null);
+  }, [quickAdd.open, quickAdd.type, quickAdd.draft]);
+
+  useEffect(() => {
+    if (!data || accountId) return;
+    setAccountId(data.accounts.find((a) => a.type === 'credit')?.id ?? data.accounts[0]?.id ?? '');
+    setToAccountId(data.accounts.find((a) => a.type === 'bank')?.id ?? '');
+    setMemberId(data.viewer?.id ?? data.members[0]?.id);
+  }, [data, accountId]);
+
+  // Auto-categorise as the payee is typed, and explain why.
+  useEffect(() => {
+    if (!data || !payee || categoryId) { setAutoCat(null); return; }
+    const s = suggestCategory(payee, data.categories, data.rules, data.all);
+    setAutoCat(s ? { id: s.categoryId, reason: s.reason } : null);
+  }, [payee, categoryId, data]);
+
+  const value = evalAmount(expr);
+  const isExpr = /[+\-*/×÷−]/.test(expr.slice(1));
+  const sugg = useMemo(() => (data ? quickSuggestions(data.all, new Date()) : []), [data]);
+  const cats = data?.categories.filter((c) => c.kind === (type === 'income' ? 'income' : 'expense')) ?? [];
+  const chosenCat = categoryId ?? autoCat?.id;
+
+  const press = (k: string) => {
+    if (k === '⌫') return setExpr((e) => e.slice(0, -1));
+    setExpr((e) => (e + k).slice(0, 32));
+  };
+
+  useEffect(() => {
+    if (!quickAdd.open) return;
+    const onKey = (e: KeyboardEvent) => {
+      const tgt = e.target as HTMLElement;
+      if (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.tagName === 'SELECT') return;
+      if (/^[0-9.+\-*/]$/.test(e.key)) { e.preventDefault(); press(e.key === '*' ? '×' : e.key === '/' ? '÷' : e.key === '-' ? '−' : e.key); }
+      if (e.key === 'Backspace') press('⌫');
+      if (e.key === 'Enter') save();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
+  async function save() {
+    if (!value || value <= 0 || !accountId || !data) return;
+    const amount = toMinor(value);
+    const splits = splitMembers.length > 1 && chosenCat
+      ? splitEvenly(amount, splitMembers.length).map((a, i) => ({ categoryId: chosenCat, memberId: splitMembers[i], amount: a }))
+      : undefined;
+    const when = new Date(`${date}T${new Date().toTimeString().slice(0, 5)}`);
+    const row = await saveTransaction({
+      amount, type, accountId, toAccountId: type === 'transfer' ? toAccountId : undefined,
+      categoryId: type === 'transfer' ? undefined : chosenCat, payee: payee || undefined, memberId, notes: notes || undefined,
+      date: when.toISOString(), currency: profile?.currency, splits, source: (quickAdd.draft?.source as 'voice') ?? 'manual',
+    });
+    setDone(true);
+    setTimeout(() => {
+      closeQuickAdd();
+      toast(`Saved ${fmt(amount)}${payee ? ` · ${payee}` : ''}`, async () => { await db.transactions.delete(row.id); });
+    }, 380);
+  }
+
+  async function addFav() {
+    if (!value || !payee) return;
+    const next = [...favs.filter((f) => f.payee !== payee), { payee, amount: toMinor(value), categoryId: chosenCat }].slice(-8);
+    await setSetting('favourites', next);
+    toast(`Added “${payee}” to favourites`);
+  }
+
+  const applyQuick = (p: { payee: string; amount: number; categoryId?: string }) => {
+    setPayee(p.payee);
+    setCategoryId(p.categoryId);
+    if (!expr) setExpr(String(p.amount / 100));
+  };
+
+  if (!data) return null;
+  return (
+    <Sheet open={quickAdd.open} onOpenChange={(o) => !o && closeQuickAdd()} title={type === 'income' ? 'Add income' : type === 'transfer' ? 'Move money' : 'Add expense'}>
+      <div className="space-y-4">
+        <Segmented label="Entry type" value={type as 'expense'} onChange={(v) => { setType(v); setCategoryId(undefined); }}
+          options={[{ value: 'expense', label: 'Expense' }, { value: 'income' as 'expense', label: 'Income' }, { value: 'transfer' as 'expense', label: 'Transfer' }]} />
+
+        <div className="rounded-2xl bg-sunk px-4 py-3 relative overflow-hidden" aria-live="polite">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className={`display text-[44px] ${value === null && expr ? 'text-bad' : ''}`}>
+              {value !== null ? fmt(toMinor(value)) : expr ? 'Check the sum' : fmt(0)}
+            </span>
+            {done && <span className="animate-pop h-10 w-10 rounded-full bg-good text-white grid place-items-center"><Check size={22} /></span>}
+          </div>
+          <p className="text-[13px] text-muted num h-5">{isExpr ? expr : expr ? ' ' : 'Type an amount — sums like 250+120×2 work too'}</p>
+        </div>
+
+        {type !== 'transfer' && (sugg.length > 0 || favs.length > 0) && (
+          <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1" aria-label="Suggestions">
+            {favs.map((f) => (
+              <button key={`f-${f.payee}`} className="chip shrink-0" onClick={() => applyQuick(f)}>
+                <Star size={13} className="text-warn" fill="currentColor" />{f.payee} <span className="text-muted num">{fmt(f.amount)}</span>
+              </button>
+            ))}
+            {sugg.filter((s) => !favs.some((f) => f.payee === s.payee)).map((s) => (
+              <button key={s.payee} className="chip shrink-0" onClick={() => applyQuick(s)}>
+                <span aria-hidden>{data.cat(s.categoryId)?.emoji}</span>{s.payee}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="grid grid-cols-4 gap-2" aria-label="Keypad">
+          {KEYS.map((k) => (
+            <button key={k} onClick={() => press(k)} aria-label={k === '⌫' ? 'Delete' : k}
+              className={`h-12 rounded-xl text-lg font-bold num transition-transform active:scale-95 ${/[÷×−+]/.test(k) ? 'bg-sunk text-primary' : 'bg-sunk/60 hover:bg-sunk'}`}>
+              {k === '⌫' ? <Delete size={20} className="mx-auto" /> : k}
+            </button>
+          ))}
+        </div>
+
+        {type === 'transfer' ? (
+          <div className="grid grid-cols-2 gap-3">
+            <label><span className="label">From</span>
+              <select className="field" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+                {data.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select></label>
+            <label><span className="label">To</span>
+              <select className="field" value={toAccountId} onChange={(e) => setToAccountId(e.target.value)}>
+                {data.accounts.filter((a) => a.id !== accountId).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select></label>
+            <p className="col-span-2 text-xs text-muted">Transfers move money between your accounts and never count as income or spending.</p>
+          </div>
+        ) : (
+          <>
+            <label className="block">
+              <span className="label">{type === 'income' ? 'From' : 'Paid to'}</span>
+              <input className="field" value={payee} onChange={(e) => setPayee(e.target.value)} placeholder={type === 'income' ? 'Employer, client…' : 'Shop, person, service…'} list="payees" />
+              <datalist id="payees">{[...new Set(data.all.map((t) => t.payee).filter(Boolean))].slice(0, 80).map((p) => <option key={p} value={p} />)}</datalist>
+            </label>
+            {autoCat && !categoryId && (
+              <p className="flex items-center gap-1.5 text-xs text-muted -mt-2"><Sparkles size={13} className="text-primary" />
+                Filed under <b className="text-ink">{data.cat(autoCat.id)?.name}</b> — {autoCat.reason}</p>
+            )}
+            <div>
+              <span className="label">Category</span>
+              <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
+                {cats.map((c) => (
+                  <button key={c.id} aria-pressed={chosenCat === c.id} onClick={() => setCategoryId(c.id)}
+                    className={`shrink-0 flex flex-col items-center gap-1 w-[72px] py-2 rounded-xl border transition-colors ${chosenCat === c.id ? 'border-primary bg-primary/5' : 'border-transparent hover:bg-sunk'}`}>
+                    <CatIcon c={c} size={36} />
+                    <span className="text-[11px] font-semibold leading-tight text-center line-clamp-2">{c.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        <button className="text-sm font-semibold text-primary" onClick={() => setShowMore((s) => !s)} aria-expanded={showMore}>
+          {showMore ? 'Fewer details' : 'Account, date, person, split…'}
+        </button>
+        {showMore && (
+          <div className="grid grid-cols-2 gap-3 animate-rise">
+            {type !== 'transfer' && (
+              <label><span className="label">Account</span>
+                <select className="field" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+                  {data.accounts.filter((a) => a.type !== 'asset').map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select></label>
+            )}
+            <label><span className="label">Date</span><input type="date" className="field" value={date} onChange={(e) => setDate(e.target.value)} /></label>
+            <label><span className="label">Who</span>
+              <select className="field" value={memberId} onChange={(e) => setMemberId(e.target.value)}>
+                {data.members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select></label>
+            <label className="col-span-2"><span className="label">Note</span><input className="field" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" /></label>
+            {type === 'expense' && (
+              <div className="col-span-2">
+                <span className="label flex items-center gap-1.5"><Split size={14} /> Split evenly between</span>
+                <div className="flex flex-wrap gap-2">
+                  {data.members.map((m) => (
+                    <button key={m.id} className="chip" aria-pressed={splitMembers.includes(m.id)}
+                      onClick={() => setSplitMembers((s) => (s.includes(m.id) ? s.filter((x) => x !== m.id) : [...s, m.id]))}>{m.name}</button>
+                  ))}
+                </div>
+                {splitMembers.length > 1 && value && (
+                  <p className="text-xs text-muted mt-2 num">{splitEvenly(toMinor(value), splitMembers.length).map((a, i) => `${data.member(splitMembers[i])?.name} ${fmt(a)}`).join(' / ')}</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex gap-2 pt-1">
+          {type !== 'transfer' && <button className="btn-soft w-11 p-0" onClick={addFav} aria-label="Save as favourite" title="Save as favourite"><Star size={18} /></button>}
+          <button className="btn-primary flex-1 h-12 text-base" disabled={!value || value <= 0} onClick={save}>
+            Save {value ? fmt(toMinor(value)) : ''}
+          </button>
+        </div>
+      </div>
+    </Sheet>
+  );
+}
