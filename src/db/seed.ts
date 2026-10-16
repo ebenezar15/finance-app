@@ -159,6 +159,9 @@ export async function seedDemo(currency = 'USD', now = new Date()) {
         memberId: rule.name.includes('Sam') ? 'm-sam' : rule.name.includes('Alex') ? 'm-alex' : undefined,
       });
     }
+    // top the cash wallet back up with what was spent from it this month
+    const cashSpend = txs.slice(cardStart).filter((t) => t.accountId === 'a-cash' && t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    if (cashSpend > 0) add({ date: new Date(ms.getFullYear(), ms.getMonth(), Math.min(lastDay, 2), 12).toISOString(), amount: Math.ceil(cashSpend / 2000) * 2000, type: 'transfer', accountId: 'a-checking', toAccountId: 'a-cash', payee: 'ATM withdrawal' });
     lastCardSpend = txs.slice(cardStart).filter((t) => t.accountId === 'a-card' && t.type === 'expense').reduce((s, t) => s + t.amount, 0);
   }
   // A duplicate + one large item recently, so anomalies have something to show
