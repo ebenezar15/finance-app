@@ -118,6 +118,8 @@ describe('goals, subscriptions & health score', () => {
     const subs = detectSubscriptions(txs);
     expect(subs).toHaveLength(1);
     expect(subs[0].priceChange).toEqual({ from: 1549, to: 1799 });
+    const mortgage = ['2026-01-05', '2026-02-05', '2026-03-05'].map((d) => tx({ date: `${d}T08:00:00`, payee: 'Mortgage', categoryId: 'loan', amount: 165000 }));
+    expect(detectSubscriptions(mortgage)).toHaveLength(0);
   });
   it('health score is bounded and transparent', () => {
     const perfect = healthScore({ monthlyIncome: 100, monthlyExpense: 70, essentialMonthly: 10, liquid: 100, monthlyDebtPayments: 0, budgetsOnTrack: 5, budgetsTotal: 5, billsOnTime: 3, billsTotal: 3 });

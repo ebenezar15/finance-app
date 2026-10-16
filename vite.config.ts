@@ -27,5 +27,5 @@ export default defineConfig({
       output: { manualChunks: { charts: ['recharts'], db: ['dexie', 'dexie-react-hooks'] } },
     },
   },
-  test: { environment: 'jsdom', setupFiles: ['src/test-setup.ts'] },
+  test: { environment: 'jsdom', setupFiles: ['src/test-setup.ts'], include: ['src/**/*.test.ts'] },
 } as any);

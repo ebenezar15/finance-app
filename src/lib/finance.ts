@@ -178,10 +178,13 @@ export interface DetectedSubscription {
  * Subscription detector: same payee charged in ≥3 distinct months at a roughly monthly
  * cadence (25–35 days apart) with amounts within 25% of each other (so price rises are still caught).
  */
-export function detectSubscriptions(txs: Transaction[]): DetectedSubscription[] {
+/** Regular payments that are obligations, not subscriptions you might cancel. */
+export const NOT_SUBSCRIPTIONS = new Set(['housing', 'loan', 'insurance', 'investing', 'education', 'childcare', 'pocket', 'salary']);
+
+export function detectSubscriptions(txs: Transaction[], exclude: Set<string> = NOT_SUBSCRIPTIONS): DetectedSubscription[] {
   const byPayee = new Map<string, Transaction[]>();
   for (const t of txs) {
-    if (!live(t) || t.type !== 'expense' || !t.payee) continue;
+    if (!live(t) || t.type !== 'expense' || !t.payee || (t.categoryId && exclude.has(t.categoryId))) continue;
     const k = t.payee.trim().toLowerCase();
     (byPayee.get(k) ?? byPayee.set(k, []).get(k)!).push(t);
   }
