@@ -21,6 +21,7 @@ Tandem is an installable web app: one codebase that runs full screen from the ho
 - **iPhone or iPad:** open it in Safari → Share → **Add to Home Screen**.
 - **Android:** open it in Chrome → ⋮ → **Install app**. Chrome may also offer it on its own.
 - **"Can't install" on Android?** Make sure the link is open in Chrome itself. Browsers built into WhatsApp, Gmail, Instagram and similar apps can't install apps, and Tandem now detects them and explains how to switch. A claude.ai link can't be installed either; use your own web address.
+- **Vercel (recommended):** `vercel.json` is included. On vercel.com choose **Add New → Project**, import this repo, name the project (e.g. `tandem-money`) and press **Deploy**. Every push redeploys automatically. The address is `https://<project-name>.vercel.app`.
 - **Hosting your own install link:** merge to `main` and turn on GitHub Pages (Settings → Pages → Source: GitHub Actions). The `pages.yml` workflow publishes it at `https://<you>.github.io/finance-app/`.
 
 ## Memory, sign-in and sync
