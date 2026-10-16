@@ -9,7 +9,11 @@ import type { Account, Profile, Transaction } from './types';
 import { useUI } from '../store/ui';
 
 export function useProfile(): Profile | undefined {
-  return useLiveQuery(async () => ((await db.settings.get('profile'))?.value as Profile) ?? defaultProfile(), []);
+  return useLiveQuery(async () => {
+    const p = ((await db.settings.get('profile'))?.value as Profile) ?? defaultProfile();
+    try { localStorage.setItem('tandem-currency', p.currency); } catch { /* storage unavailable */ }
+    return p;
+  }, []);
 }
 
 export async function saveProfile(patch: Partial<Profile>) {

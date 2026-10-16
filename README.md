@@ -56,7 +56,7 @@ Shortcuts on desktop: `N` adds an entry, `/` jumps to search.
 | Goals & debts | Goal projections, emergency-fund calculator, EMI and amortisation, prepayment simulator, snowball vs avalanche, IOUs |
 | Net worth | Holdings, allocation, reconcile mode, credit utilisation |
 | Insights | Ask about your money (Claude, from aggregated totals only), a year-in-spending heatmap with no-spend streaks, health score (0–100) with its parts shown, 30/60/90-day forecast, what-if sliders, anomalies, a shareable monthly story |
-| Inbox & import | Review inbox, bank-alert/SMS parser, CSV and OFX import with duplicate detection, voice entry |
+| Inbox & import | Import from the CashBook app (Excel/CSV: each book becomes an account, balances carried over, categories and payment modes mapped, duplicates skipped), review inbox, bank-alert/SMS parser, CSV and OFX import, voice entry |
 | Family | Roles, who-spent-what, pocket money and chores, split and settle |
 | Settings | Six colour schemes × light/dark (plus high contrast), PIN lock, account sync status, install guide, encrypted backup, restore and share-to-email |
 

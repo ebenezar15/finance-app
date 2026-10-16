@@ -8,13 +8,18 @@ import { useUI } from '../store/ui';
 
 export function Money({ value, className = '', sign, compact, currency }: { value: number; className?: string; sign?: boolean; compact?: boolean; currency?: string }) {
   const profile = useProfile();
-  const text = formatMoney(value, currency ?? profile?.currency ?? 'USD', { sign, compact });
+  const text = formatMoney(value, currency ?? profile?.currency ?? lastCurrency(), { sign, compact });
   return <span className={`money num ${className}`}>{text}</span>;
+}
+
+/** Last currency this device showed, so the first frame (before the profile loads) isn't in USD. */
+export function lastCurrency() {
+  try { return localStorage.getItem('tandem-currency') || 'USD'; } catch { return 'USD'; }
 }
 
 export function useFmt() {
   const profile = useProfile();
-  const cur = profile?.currency ?? 'USD';
+  const cur = profile?.currency ?? lastCurrency();
   return (v: number, o: { compact?: boolean; sign?: boolean } = {}) => formatMoney(v, cur, o);
 }
 

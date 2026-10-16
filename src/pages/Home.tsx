@@ -228,6 +228,16 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
         </div>
       </section>
 
+      {data.all.length === 0 && (
+        <section className="panel p-5 flex flex-wrap items-center gap-4">
+          <div className="flex-1 min-w-[14rem]">
+            <p className="font-bold">Moving from the CashBook app?</p>
+            <p className="sub">Export each book as Excel and import it here. Entries, categories, payment modes and balances come across.</p>
+          </div>
+          <Link to="/inbox" className="btn-primary">Import from CashBook</Link>
+        </section>
+      )}
+
       <InstallNudge />
 
       <div className="grid lg:grid-cols-2 gap-6">

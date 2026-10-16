@@ -1,6 +1,6 @@
 import { Cloud, Download, Mail, Smartphone, KeyRound, Lock, Shield, Upload } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useState, type ReactNode } from 'react';
 import { Panel } from '../components/ui';
 import type { PinRecord } from '../components/Lock';
@@ -61,6 +61,10 @@ export default function Settings() {
       <ProfilePanel key={JSON.stringify([profile.appName, profile.primaryUser, profile.currency, profile.fyStartMonth, profile.budgetStyle])} profile={profile} />
       <Appearance />
       <Security />
+      <Panel title="Moving from another app?">
+        <p className="sub">Bring your entries over from the CashBook app (Excel or CSV export), or from a bank statement.</p>
+        <Link to="/inbox" className="btn-primary mt-3 inline-flex">Import from CashBook</Link>
+      </Panel>
       <Backup currency={profile.currency} />
       <DemoData currency={profile.currency} />
       <Panel title={<span className="flex items-center gap-2"><Cloud size={18} /> Sync & sign-in</span>}>

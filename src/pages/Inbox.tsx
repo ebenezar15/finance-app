@@ -11,6 +11,7 @@ import { toMinor } from '../lib/money';
 import { REVIEW_THRESHOLD, parseAlert, type ParsedAlert } from '../lib/sms';
 import { parseVoice } from '../lib/voice';
 import { useUI } from '../store/ui';
+import { CashbookImport } from '../components/CashbookImport';
 
 export default function Inbox() {
   const data = useData();
@@ -21,6 +22,7 @@ export default function Inbox() {
         <h1 className="h1">Inbox & import</h1>
         <p className="sub max-w-2xl">Check entries captured automatically, and bring in transactions from bank alerts, statements, your voice or a receipt. Everything is read on this device.</p>
       </div>
+      <CashbookImport data={data} />
       <div className="grid lg:grid-cols-2 gap-6 items-start">
         <ReviewInbox data={data} />
         <PasteAlert data={data} />
