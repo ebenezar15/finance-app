@@ -6,6 +6,7 @@ test('makes no third-party network requests', async ({ page }) => {
   const external: string[] = [];
   page.on('request', (r) => { if (!r.url().startsWith(ORIGIN) && !r.url().startsWith('data:') && !r.url().startsWith('blob:')) external.push(r.url()); });
   await page.goto('/');
+  await page.getByText('Explore with demo data').click();
   await expect(page.getByText('Safe to spend today')).toBeVisible({ timeout: 20_000 });
   for (const path of ['/activity', '/budgets', '/bills', '/goals', '/debts', '/wealth', '/insights', '/family', '/inbox', '/settings']) {
     await page.goto(path);
@@ -16,6 +17,7 @@ test('makes no third-party network requests', async ({ page }) => {
 
 test('logs an expense in under 5 seconds', async ({ page }) => {
   await page.goto('/');
+  await page.getByText('Explore with demo data').click();
   await expect(page.getByText('Safe to spend today')).toBeVisible({ timeout: 20_000 });
   const t0 = Date.now();
   await page.keyboard.press('n');
@@ -28,6 +30,7 @@ test('logs an expense in under 5 seconds', async ({ page }) => {
 
 test('opens and works offline after first load', async ({ page, context }) => {
   await page.goto('/');
+  await page.getByText('Explore with demo data').click();
   await expect(page.getByText('Safe to spend today')).toBeVisible({ timeout: 20_000 });
   await page.waitForFunction(async () => !!(await navigator.serviceWorker?.ready)?.active);
   await page.reload(); // let the service worker take control

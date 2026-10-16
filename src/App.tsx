@@ -1,13 +1,11 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
 import { Route, Routes, useNavigate, useSearchParams } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { LockScreen, useAutoLock } from './components/Lock';
 import { QuickAdd } from './components/QuickAdd';
 import { ConfirmHost, Toasts } from './components/ui';
-import { getSetting, purgeTrash } from './db/db';
-import { seedDemo } from './db/seed';
-import { guessCurrency } from './components/CurrencySelect';
+import { purgeTrash } from './db/db';
+import { clearToFreshStart, demoUntouched } from './db/seed';
 import { EmbedBanner } from './components/EmbedBanner';
 import { startCloudSync, useSync } from './lib/cloudSync';
 
@@ -32,7 +30,7 @@ const Family = lazy(() => import('./pages/Family'));
 const Inbox = lazy(() => import('./pages/Inbox'));
 const Settings = lazy(() => import('./pages/Settings'));
 
-let demoSeeding = false;
+let demoChecked = false;
 
 const TOKENS = ['bg', 'surface', 'sunk', 'line', 'primary', 'onprimary'] as const;
 
@@ -74,24 +72,26 @@ export default function App() {
   }, [profile?.onboarded]);
 
   const syncReady = useSync((s) => s.ready);
-  const skipDemo = useLiveQuery(() => getSetting('skipDemo', false), []);
   useEffect(() => { startCloudSync(); requestPersistentStorage(); }, []);
+  // First open shows the clean setup screen (the demo is an option there). Devices that were
+  // given the demo automatically by an earlier version get it removed, but only if nobody has
+  // touched it; anything the person entered is never deleted without asking.
   useEffect(() => {
-    // First open (both builds): start in the demo household so every feature is visible straight
-    // away; "Start my own" clears it. In the Claude build, wait for the account copy first so a
-    // returning user gets their own household, not the demo.
-    if (!syncReady || !profile || profile.onboarded || skipDemo !== false || demoSeeding) return;
-    demoSeeding = true; // effects can run twice; seeding twice would duplicate every entry
-    seedDemo(guessCurrency()).finally(() => { demoSeeding = false; });
-  }, [profile, syncReady, skipDemo]);
+    if (!syncReady || !profile?.onboarded || demoChecked) return;
+    demoChecked = true;
+    demoUntouched().then(async (untouched) => {
+      if (!untouched) return;
+      await clearToFreshStart();
+      useUI.getState().toast('Removed the demo data. Set up your own household to start.');
+    });
+  }, [profile?.onboarded, syncReady]);
 
   // PWA shortcut: /?add=1 opens the quick-add sheet straight away.
   useEffect(() => {
     if (params.get('add') === '1') { openQuickAdd(); nav('/', { replace: true }); }
   }, [params, openQuickAdd, nav]);
 
-  const waitingForDemo = !profile?.onboarded && (skipDemo === undefined || skipDemo === false);
-  if (!profile || (!syncReady && !profile.onboarded) || waitingForDemo) return <div className="min-h-screen bg-bg grid place-items-center text-sm text-muted">Loading your household…</div>;
+  if (!profile || (!syncReady && !profile.onboarded)) return <div className="min-h-screen bg-bg grid place-items-center text-sm text-muted">Loading your household…</div>;
   if (!profile.onboarded) return <Onboarding />;
   if (locked) return <LockScreen />;
 

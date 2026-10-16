@@ -1,12 +1,13 @@
 import { Cloud, Download, Mail, Smartphone, KeyRound, Lock, Shield, Upload } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useNavigate } from 'react-router-dom';
 import { useState, type ReactNode } from 'react';
 import { Panel } from '../components/ui';
 import type { PinRecord } from '../components/Lock';
 import { snapshot, exportEncrypted, importEncrypted } from '../db/backup';
 import { db, setSetting } from '../db/db';
 import { saveProfile, useData, useProfile } from '../db/hooks';
-import { seedDemo, wipeAll } from '../db/seed';
+import { clearToFreshStart, seedDemo, wipeAll } from '../db/seed';
 import type { BudgetStyle, Profile } from '../db/types';
 import { hashPin, type Envelope } from '../lib/crypto';
 import { toCSV } from '../lib/csv';
@@ -288,10 +289,24 @@ function Backup({ currency }: { currency: string }) {
 /* ───────────────────────── Demo data ───────────────────────── */
 
 function DemoData({ currency }: { currency: string }) {
+  const navigate = useNavigate();
+  const isDemo = useLiveQuery(async () => !!(await db.settings.get('demo'))?.value, []);
   const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false);
   return (
     <Panel title="Demo data">
+      {isDemo ? (
+        <div className="rounded-2xl bg-warn/10 p-4 mb-4">
+          <p className="text-sm"><b>You’re using the demo household.</b> Remove it to start with a clean app for your own entries.</p>
+          <button className="btn-primary mt-3" disabled={busy} onClick={async () => {
+            if (!(await askConfirm('This deletes all the demo data, including anything you added to it, so you can set up your own household.', 'Remove demo data'))) return;
+            setBusy(true);
+            await clearToFreshStart();
+            useUI.getState().setViewAs(null);
+            navigate('/'); // the setup screen appears right away; after setup you land on Home
+          }}>Remove demo data and start fresh</button>
+        </div>
+      ) : null}
       <p className="sub">Try Tandem with a sample family of four and a year of entries.</p>
       <button className="btn-soft mt-3" disabled={busy} onClick={async () => {
         if (!(await askConfirm('Loading the demo family replaces all the data on this device.', 'Load demo family'))) return;

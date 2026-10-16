@@ -245,8 +245,35 @@ export async function seedDemo(currency = 'USD', now = new Date()) {
     await db.ious.bulkPut(ious);
     await setSetting('profile', { ...defaultProfile(currency), primaryUser: 'Alex', onboarded: true, topGoals: ['Emergency fund', 'College fund'] } satisfies Profile);
     await setSetting('demo', true);
+    await setSetting('demoSeededAt', Date.now());
   });
   return txs.length;
+}
+
+/**
+ * True when an automatically loaded demo household is still exactly as generated: nothing logged, no entries added
+ * by hand since seeding, and the household still carries the demo's name. Only then is it safe
+ * to clear without asking.
+ */
+export async function demoUntouched() {
+  if (!(await db.settings.get('demo'))?.value) return false;
+  // Demos loaded on purpose by this version carry demoSeededAt; only auto-seeded demos from
+  // earlier versions (no timestamp) are candidates for automatic removal.
+  if ((await db.settings.get('demoSeededAt'))?.value) return false;
+  const profile = (await db.settings.get('profile'))?.value as Profile | undefined;
+  if (profile?.primaryUser && profile.primaryUser !== 'Alex') return false;
+  if ((await db.audit.count()) > 0) return false;
+  const txs = await db.transactions.toArray();
+  if (!txs.length) return true;
+  const seededAt = Math.min(...txs.map((t) => t.createdAt));
+  const grace = seededAt + 60_000; // seeding itself takes a moment
+  return !txs.some((t) => t.source !== 'recurring' && (t.createdAt > grace || t.updatedAt > grace || !!t.deletedAt));
+}
+
+/** Removes everything and lands on the clean setup screen. */
+export async function clearToFreshStart() {
+  await wipeAll();
+  await setSetting('skipDemo', true);
 }
 
 export async function wipeAll() {
