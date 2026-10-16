@@ -2,6 +2,9 @@ import { ArrowUp, Eye, MessageCircleQuestion, Square } from 'lucide-react';
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useData, useProfile } from '../db/hooks';
 import { buildSummary } from '../lib/moneySummary';
+import { askWithKey } from '../lib/askClaude';
+import { getSetting, setSetting } from '../db/db';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { Panel, Sheet } from './ui';
 
 type SampleFn = ((input: string | { role: 'user' | 'assistant'; content: string }[], opts?: Record<string, unknown>) => Promise<{ text: string; truncated: boolean }>);
@@ -38,6 +41,8 @@ const ERRORS: Record<string, string> = {
   sampling_disabled: 'Asking Claude is turned off for this account.',
   rate_limited: 'You’ve asked a lot just now. Wait a minute and try again.',
   session_expired: 'Your session expired. Reload the page and try again.',
+  bad_key: 'That API key wasn’t accepted. Check it in Settings → Privacy, or paste a new one below.',
+  offline: 'You’re offline. Asking needs an internet connection; everything else works offline.',
   refused: 'Claude couldn’t answer that one. Try asking it differently.',
   prompt_too_large: 'Your household summary is too large to send. Ask about a single area instead.',
 };
@@ -57,17 +62,22 @@ export function AskMoney() {
   const [peek, setPeek] = useState(false);
   const ctl = useRef<AbortController | null>(null);
   const summary = useMemo(() => (data && profile ? buildSummary(data, profile.currency) : null), [data, profile]);
+  const embed = import.meta.env.VITE_EMBED === '1';
+  const online = useLiveQuery(() => getSetting<{ ai?: boolean; aiKey?: string; prices?: boolean }>('online', {}), []);
+  const apiKey = online?.aiKey?.trim();
+  const [keyDraft, setKeyDraft] = useState('');
 
   useEffect(() => {
-    if (import.meta.env.VITE_EMBED !== '1') { setSample(null); return; }
+    if (!embed) { setSample(null); return; }
     const host = (window as unknown as { claude?: Host }).claude;
     Promise.resolve(host?.use?.('sample')).then((s) => setSample(() => (s as SampleFn) ?? null)) // wrap: a bare function would be treated as a state updater.catch(() => setSample(null));
   }, []);
 
-  if (sample === null || !summary) return null;
+  if (!summary || (embed && sample === null)) return null;
+  const ready = embed ? !!sample : !!apiKey;
 
   const ask = async (question: string) => {
-    if (!question.trim() || busy || !sample) return;
+    if (!question.trim() || busy || !ready) return;
     const history = [...chat, { role: 'user' as const, content: question.trim() }];
     setChat([...history, { role: 'assistant', content: '' }]);
     setQ(''); setErr(''); setBusy(true);
@@ -76,11 +86,13 @@ export function AskMoney() {
       'Be specific with numbers from the data, suggest 2–4 concrete actions, keep it under 200 words, use short paragraphs or bullets, and be encouraging, never judgmental. ' +
       'If the data cannot answer, say what is missing. End with one line: "Not professional financial advice."\n\nHousehold summary:\n' + JSON.stringify(summary);
     const input = history.map((m, i) => (i === 0 ? { role: m.role, content: `${brief}\n\nQuestion: ${m.content}` } : m));
+    const show = (text: string) => setChat((c) => [...c.slice(0, -1), { role: 'assistant', content: text }]);
     try {
-      await sample(input, {
-        cache: false, signal: ctl.current.signal, modelTier: 'default',
-        onText: ({ text }: { text: string }) => setChat((c) => [...c.slice(0, -1), { role: 'assistant', content: text }]),
-      });
+      if (embed && sample) {
+        await sample(input, { cache: false, signal: ctl.current.signal, modelTier: 'default', onText: ({ text }: { text: string }) => show(text) });
+      } else {
+        await askWithKey(apiKey!, input, show, ctl.current.signal);
+      }
     } catch (e) {
       const { code, text } = (e ?? {}) as { code?: string; text?: string };
       setChat((c) => (text ? [...c.slice(0, -1), { role: 'assistant', content: text }] : c.slice(0, -1)));
@@ -91,9 +103,24 @@ export function AskMoney() {
   return (
     <Panel title={<span className="flex items-center gap-2"><MessageCircleQuestion size={18} className="text-primary" /> Ask about your money</span>}
       action={<button className="btn-ghost h-9 text-sm text-muted" onClick={() => setPeek(true)}><Eye size={15} /> See what’s sent</button>}>
+      {!embed && !apiKey && (
+        <form className="rounded-2xl bg-sunk/70 p-4 mb-4 space-y-2" onSubmit={async (e) => {
+          e.preventDefault();
+          if (!keyDraft.trim().startsWith('sk-')) { setErr('API keys start with “sk-”. Copy it again from console.anthropic.com.'); return; }
+          await setSetting('online', { ...(online ?? {}), ai: true, aiKey: keyDraft.trim() });
+          setKeyDraft(''); setErr('');
+        }}>
+          <p className="text-sm"><b>Turn on Ask with your own Claude API key.</b> Get one at <span className="font-semibold select-all">console.anthropic.com</span> → API keys. It’s stored only on this device, and you pay Anthropic directly for what you ask (usually well under a cent per question).</p>
+          <div className="flex gap-2">
+            <label htmlFor="ask-key" className="sr-only">Claude API key</label>
+            <input id="ask-key" type="password" autoComplete="off" className="field" value={keyDraft} onChange={(e) => setKeyDraft(e.target.value)} placeholder="sk-ant-…" />
+            <button type="submit" className="btn-primary shrink-0">Save key</button>
+          </div>
+        </form>
+      )}
       {chat.length === 0 && (
         <div className="flex flex-wrap gap-2 mb-4">
-          {STARTERS.map((s) => <button key={s} className="chip h-auto py-1.5 text-left" onClick={() => ask(s)} disabled={sample === undefined}>{s}</button>)}
+          {STARTERS.map((s) => <button key={s} className="chip h-auto py-1.5 text-left" onClick={() => ask(s)} disabled={!ready}>{s}</button>)}
         </div>
       )}
       {chat.length > 0 && (
@@ -109,9 +136,12 @@ export function AskMoney() {
         <input id="ask-q" className="field" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask anything about your spending, budgets or goals" maxLength={400} />
         {busy
           ? <button type="button" className="btn-soft w-11 p-0 shrink-0" aria-label="Stop" onClick={() => ctl.current?.abort()}><Square size={16} /></button>
-          : <button type="submit" className="btn-primary w-11 p-0 shrink-0" aria-label="Ask" disabled={!q.trim() || sample === undefined}><ArrowUp size={18} /></button>}
+          : <button type="submit" className="btn-primary w-11 p-0 shrink-0" aria-label="Ask" disabled={!q.trim() || !ready}><ArrowUp size={18} /></button>}
       </form>
-      <p className="text-xs text-muted mt-2">Answers come from Claude using your own account. Only totals are sent: no shop names, notes or people’s names.</p>
+      <p className="text-xs text-muted mt-2">
+        Answers come from Claude using {embed ? 'your own account' : 'your own API key'}. Only totals are sent: no shop names, notes or people’s names.
+        {!embed && apiKey && <> <button className="underline" onClick={() => setSetting('online', { ...(online ?? {}), aiKey: '' })}>Remove key</button></>}
+      </p>
       <Sheet open={peek} onOpenChange={setPeek} title="What gets sent" description="This summary is all Claude sees. It’s rebuilt from your data each time you ask." wide>
         <pre className="text-xs bg-sunk rounded-xl p-3 overflow-auto max-h-[60vh] whitespace-pre-wrap">{JSON.stringify(summary, null, 2)}</pre>
       </Sheet>

@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { Route, Routes, useNavigate, useSearchParams } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { LockScreen, useAutoLock } from './components/Lock';
@@ -30,6 +31,8 @@ const Insights = lazy(() => import('./pages/Insights'));
 const Family = lazy(() => import('./pages/Family'));
 const Inbox = lazy(() => import('./pages/Inbox'));
 const Settings = lazy(() => import('./pages/Settings'));
+
+let demoSeeding = false;
 
 const TOKENS = ['bg', 'surface', 'sunk', 'line', 'primary', 'onprimary'] as const;
 
@@ -70,21 +73,25 @@ export default function App() {
     purgeTrash().catch(console.error);
   }, [profile?.onboarded]);
 
-  // Shared link: open straight into the demo household (in the viewer's local currency) unless they chose to start fresh.
   const syncReady = useSync((s) => s.ready);
+  const skipDemo = useLiveQuery(() => getSetting('skipDemo', false), []);
   useEffect(() => { startCloudSync(); requestPersistentStorage(); }, []);
   useEffect(() => {
-    // Wait for the account copy first, so a returning user gets their household, not the demo.
-    if (import.meta.env.VITE_EMBED !== '1' || !syncReady || !profile || profile.onboarded) return;
-    getSetting('skipDemo', false).then((skip) => { if (!skip) seedDemo(guessCurrency()); });
-  }, [profile, syncReady]);
+    // First open (both builds): start in the demo household so every feature is visible straight
+    // away; "Start my own" clears it. In the Claude build, wait for the account copy first so a
+    // returning user gets their own household, not the demo.
+    if (!syncReady || !profile || profile.onboarded || skipDemo !== false || demoSeeding) return;
+    demoSeeding = true; // effects can run twice; seeding twice would duplicate every entry
+    seedDemo(guessCurrency()).finally(() => { demoSeeding = false; });
+  }, [profile, syncReady, skipDemo]);
 
   // PWA shortcut: /?add=1 opens the quick-add sheet straight away.
   useEffect(() => {
     if (params.get('add') === '1') { openQuickAdd(); nav('/', { replace: true }); }
   }, [params, openQuickAdd, nav]);
 
-  if (!profile || (!syncReady && !profile.onboarded)) return <div className="min-h-screen bg-bg grid place-items-center text-sm text-muted">Loading your household…</div>;
+  const waitingForDemo = !profile?.onboarded && (skipDemo === undefined || skipDemo === false);
+  if (!profile || (!syncReady && !profile.onboarded) || waitingForDemo) return <div className="min-h-screen bg-bg grid place-items-center text-sm text-muted">Loading your household…</div>;
   if (!profile.onboarded) return <Onboarding />;
   if (locked) return <LockScreen />;
 

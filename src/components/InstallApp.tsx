@@ -11,6 +11,8 @@ if (typeof window !== 'undefined') {
 const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
 export const isIOS = /iPhone|iPad|iPod/.test(ua) || (ua.includes('Mac') && typeof document !== 'undefined' && 'ontouchend' in document);
 export const isAndroid = /Android/.test(ua);
+/** Browsers built into other apps (WhatsApp, Gmail, Instagram, Facebook…) can't install web apps. */
+export const isInAppBrowser = /FBAN|FBAV|Instagram|Line\/|WhatsApp|Snapchat|Twitter|LinkedInApp|GSA\/|MicroMessenger|; wv\)/.test(ua);
 export const isStandalone = () => {
   try { return matchMedia('(display-mode: standalone)').matches || (navigator as unknown as { standalone?: boolean }).standalone === true; } catch { return false; }
 };
@@ -26,6 +28,15 @@ function useInstallPrompt() {
 export function InstallSteps() {
   const prompt = useInstallPrompt();
   if (isStandalone()) return <p className="text-sm">Tandem is installed on this device. It opens full screen from your home screen and works offline.</p>;
+  if (isInAppBrowser) {
+    return (
+      <div className="space-y-3 text-sm">
+        <p><b>You’ve opened Tandem inside another app</b>, and that app’s built-in browser can’t install apps.</p>
+        <p>{isIOS ? <>Tap <b>⋯</b> or the share button and choose <b>Open in Safari</b>, then use Share → <b>Add to Home Screen</b>.</> : <>Tap <b>⋮</b> and choose <b>Open in Chrome</b> (or Open in browser), then tap ⋮ → <b>Install app</b>.</>}</p>
+        <CopyLink />
+      </div>
+    );
+  }
   if (prompt) {
     return (
       <div className="space-y-2">
@@ -34,7 +45,15 @@ export function InstallSteps() {
       </div>
     );
   }
-  const where = EMBED ? 'this page' : 'Tandem';
+  if (EMBED) {
+    return (
+      <div className="space-y-2 text-sm">
+        <p>This Claude link opens inside Claude, so it can’t be installed as its own app. For a home-screen app that works offline, open your Tandem web address (for example <b>your-name.netlify.app</b>) in Chrome on Android or Safari on iPhone, then install it from there.</p>
+        <p className="text-xs text-muted">Here, signing in with the same Claude account on each device keeps your household in sync.</p>
+      </div>
+    );
+  }
+  const where = 'Tandem';
   return (
     <ol className="space-y-2.5 text-sm">
       {isIOS || !isAndroid ? (
@@ -48,10 +67,21 @@ export function InstallSteps() {
           <li className="flex gap-3"><Step n={isIOS || !isAndroid ? 3 : 1} /><span><b>Android:</b> open {where} in <b>Chrome</b>, tap the <b>⋮</b> menu, then <b>Install app</b> or <b>Add to Home screen</b>.</span></li>
         </>
       ) : null}
-      <li className="text-xs text-muted pl-9">{EMBED ? 'Sign in with the same Claude account on each device and your household follows you.' : 'Your data stays on the device you install it on. Use an encrypted backup to move it.'}</li>
+      <li className="text-xs text-muted pl-9">If you don’t see Install app, make sure you opened the link in Chrome itself, not inside WhatsApp, Gmail or another app. Your data stays on the device you install it on; use an encrypted backup to move it.</li>
     </ol>
   );
 }
+function CopyLink() {
+  const [done, setDone] = useState(false);
+  const url = typeof location !== 'undefined' ? location.origin + location.pathname.replace(/[^/]*$/, '') : '';
+  return (
+    <div className="flex items-center gap-2">
+      <span className="field h-10 flex items-center text-xs select-all truncate">{url}</span>
+      <button className="btn-soft h-10 shrink-0" onClick={async () => { try { await navigator.clipboard.writeText(url); setDone(true); } catch { /* select the text instead */ } }}>{done ? 'Copied' : 'Copy link'}</button>
+    </div>
+  );
+}
+
 const Step = ({ n }: { n: number }) => <span className="h-6 w-6 shrink-0 rounded-full bg-primary text-onprimary grid place-items-center text-xs font-bold">{n}</span>;
 
 /** A one-time nudge on phones that aren't running Tandem from the home screen yet. */

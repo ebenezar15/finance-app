@@ -310,6 +310,7 @@ function DemoData({ currency }: { currency: string }) {
           e.preventDefault();
           if (confirm !== 'ERASE') return;
           await wipeAll();
+          await setSetting('skipDemo', true); // land on a clean setup screen, not the demo
           window.location.reload();
         }}>
           <div className="flex-1 min-w-[180px]"><label className="label" htmlFor="erase">Type ERASE to confirm</label><input id="erase" className="field" autoComplete="off" value={confirm} onChange={(e) => setConfirm(e.target.value)} /></div>

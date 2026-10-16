@@ -20,12 +20,14 @@ Tandem is an installable web app: one codebase that runs full screen from the ho
 
 - **iPhone or iPad:** open it in Safari → Share → **Add to Home Screen**.
 - **Android:** open it in Chrome → ⋮ → **Install app**. Chrome may also offer it on its own.
+- **"Can't install" on Android?** Make sure the link is open in Chrome itself. Browsers built into WhatsApp, Gmail, Instagram and similar apps can't install apps, and Tandem now detects them and explains how to switch. A claude.ai link can't be installed either; use your own web address.
 - **Hosting your own install link:** merge to `main` and turn on GitHub Pages (Settings → Pages → Source: GitHub Actions). The `pages.yml` workflow publishes it at `https://<you>.github.io/finance-app/`.
 
 ## Memory, sign-in and sync
 
 - **On the device:** everything is saved in the browser's database (IndexedDB) and survives restarts. Data is never reset unless you choose **Erase everything**.
 - **Shared Claude link:** your Claude account is the sign-in. Your household is saved privately under your account, so it follows you to any phone or computer where you open the link. Nobody else can read it, including the person who shared the link.
+- **Ask about your money outside Claude:** paste your own Claude API key (console.anthropic.com) in Insights. It's stored only on the device; questions go straight from the phone to the Claude API, and only aggregated totals are sent.
 - **Moving data from the standalone app:** Settings → Data and backup → **Send to email or Drive** shares an encrypted backup through the phone's share sheet. Restore it on the new device with your passphrase.
 
 ## Currencies

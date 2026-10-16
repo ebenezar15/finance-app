@@ -3,7 +3,8 @@ import {
 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { useData, useProfile } from '../db/hooks';
+import { saveProfile, useData, useProfile } from '../db/hooks';
+import { CurrencySelect } from './CurrencySelect';
 import { useUI } from '../store/ui';
 import { Avatar, Sheet } from './ui';
 import { AppearancePicker } from './AppearancePicker';
@@ -125,6 +126,7 @@ export function Layout({ children }: { children: ReactNode }) {
           ))}
         </div>
         <div className="mt-5 pt-4 border-t border-line/70"><AppearancePicker compact /></div>
+        <QuickCurrency />
         <div className="mt-4"><ViewingAs /></div>
       </Sheet>
     </div>
@@ -138,6 +140,19 @@ function Tab({ to }: { to: string }) {
     <NavLink to={to} end={n.end} className={({ isActive }) => `flex flex-col items-center gap-0.5 text-[11px] font-semibold ${isActive ? 'text-primary' : 'text-muted'}`}>
       <Icon size={22} strokeWidth={2.2} />{n.label}
     </NavLink>
+  );
+}
+
+/** Currency, one tap from anywhere on a phone. Amounts are relabelled, not converted. */
+function QuickCurrency() {
+  const profile = useProfile();
+  if (!profile) return null;
+  return (
+    <div className="mt-4">
+      <label className="label" htmlFor="more-cur">Currency</label>
+      <CurrencySelect id="more-cur" value={profile.currency} onChange={(c) => saveProfile({ currency: c })} />
+      <p className="text-xs text-muted mt-1">Changes how amounts are shown. Existing amounts aren’t converted.</p>
+    </div>
   );
 }
 
