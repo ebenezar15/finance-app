@@ -1,8 +1,9 @@
 # Switch on Google Drive backup (one-time, about 10 minutes)
 
-Tandem backs up to the person's own Google Drive. Google needs to know the app exists first, so
-whoever runs the Vercel site does this once. After that, anyone using the app just taps
-**Connect Google Drive**.
+This registers the **app** with Google. It does not create a shared Drive. Every person who uses
+Tandem taps **Sign in with Google**, picks **their own** Google account on Google's chooser, and
+their backups go only to **their own** Drive. Nobody else, including you as the owner of this
+Google Cloud project, can see their files. You do this once; users never see these settings.
 
 ## 1. Create a Google Cloud project
 1. Open https://console.cloud.google.com and sign in with your Gmail account.
@@ -40,7 +41,7 @@ Vercel → project **tandem-money** → **Settings → Environment Variables** �
 Then **Deployments → … → Redeploy** the latest deployment.
 
 ## 6. Check it
-Open the app → **Settings → Automatic backup → Connect Google Drive**. After signing in you
+Open the app → **Settings → Automatic backup → Sign in with Google**. After signing in you
 should see "Backing up to your@gmail.com", and a **Tandem backups** folder appears in Drive.
 
 The client secret stays on the server (Vercel). The phone only ever holds its own sign-in token,

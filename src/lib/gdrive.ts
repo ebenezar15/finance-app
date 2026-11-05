@@ -81,7 +81,9 @@ export async function connectDrive(loginHint?: string): Promise<string | undefin
   const oauth = await loadGis();
   const code = await new Promise<string>((resolve, reject) => {
     oauth.initCodeClient({
-      client_id: c.clientId!, scope: SCOPES, ux_mode: 'popup', prompt: 'consent', login_hint: loginHint,
+      // 'select_account' always shows Google's account chooser, so each person picks their own
+      // account (even on a phone signed in to several); 'consent' makes Google return a refresh token.
+      client_id: c.clientId!, scope: SCOPES, ux_mode: 'popup', prompt: 'select_account consent', login_hint: loginHint,
       callback: (r) => (r.code ? resolve(r.code) : reject(new DriveError('failed', 'Google sign-in was cancelled.'))),
       error_callback: () => reject(new DriveError('failed', 'Google sign-in was closed before it finished.')),
     }).requestCode();
@@ -95,9 +97,25 @@ export async function connectDrive(loginHint?: string): Promise<string | undefin
   return email;
 }
 
+/**
+ * Signs this device out of Google Drive and asks Google to revoke Tandem's access for that
+ * account (best effort: if offline, the token is still forgotten on this device).
+ */
 export async function disconnectDrive() {
+  const link = await getLink();
   access = null;
   await saveLink(null);
+  if (link?.refreshToken) {
+    await fetchImpl(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(link.refreshToken)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    }).catch(() => {});
+  }
+}
+
+/** Signs out of the current Google account and opens the chooser for another one. */
+export async function switchDriveAccount() {
+  await disconnectDrive();
+  return connectDrive();
 }
 
 let access: { token: string; until: number } | null = null;

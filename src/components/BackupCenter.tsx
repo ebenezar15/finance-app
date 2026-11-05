@@ -3,7 +3,7 @@ import { CloudUpload, FolderOpen, HardDrive, History, RefreshCw, ShieldCheck, Tr
 import { useEffect, useState } from 'react';
 import { describeSnapshot, folderSupported, chooseFolder, findNewestInFolder, folderPermission, forgetFolder, getFolder, readBackupFile } from '../lib/phoneBackup';
 import { backupNow, checkForNewer, restoreFromDrive, restoreSnapshot, useBackup } from '../lib/autoBackup';
-import { connectDrive, disconnectDrive, driveConfig, listDriveBackups, type DriveFile } from '../lib/gdrive';
+import { connectDrive, disconnectDrive, driveConfig, listDriveBackups, switchDriveAccount, type DriveFile } from '../lib/gdrive';
 import { decryptJSON } from '../lib/crypto';
 import { asSnapshot, snapshot, type Snapshot } from '../db/backup';
 import { db } from '../db/db';
@@ -43,20 +43,21 @@ export function BackupCenter() {
         <div className="flex items-start gap-3">
           <CloudUpload size={20} className="text-primary shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
-            <p className="font-bold">Google Drive (your Gmail account)</p>
+            <p className="font-bold">Your Google Drive</p>
             {drive.status === 'off' ? (
-              <p className="sub">Backs up after every change into a private “Tandem backups” folder. Tandem can only see files it creates.</p>
+              <p className="sub">Sign in with your own Google account (for example your Gmail). Backups go into a private “Tandem backups” folder in <b>your</b> Drive only. Nobody else, including whoever runs this app, can see them, and Tandem can only see files it creates.</p>
             ) : (
-              <p className="text-sm">
-                {drive.email ? <>Backing up to <b className="break-all">{drive.email}</b></> : 'Connected'} · last backup {when(drive.at)}
-                {drive.status === 'saving' && <span className="text-primary"> · saving…</span>}
-              </p>
+              <>
+                <p className="text-sm">Signed in as <b className="break-all">{drive.email ?? 'your Google account'}</b></p>
+                <p className="text-sm text-muted">Backing up to this account’s Drive · last backup {when(drive.at)}
+                  {drive.status === 'saving' && <span className="text-primary"> · saving…</span>}</p>
+              </>
             )}
             {(drive.status === 'error' || drive.status === 'offline' || drive.status === 'signed_out') && <p className="text-sm text-warn mt-1">{drive.message}</p>}
           </div>
         </div>
         {cfg && !cfg.enabled && drive.status === 'off' ? (
-          <p className="text-xs text-muted rounded-xl bg-sunk/70 p-3">Google Drive backup needs a one-time setup on the app’s website (a Google sign-in key). Until then, use the phone folder below.</p>
+          <p className="text-xs text-muted rounded-xl bg-sunk/70 p-3">Sign in with Google isn’t switched on for this app yet (the app’s owner registers it with Google once). Until then, use the phone backup below.</p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {(drive.status === 'off' || drive.status === 'signed_out') && (
@@ -65,7 +66,7 @@ export function BackupCenter() {
                 toast(`Connected ${email ?? 'Google Drive'}. Backing up now…`);
                 useBackup.setState({ drive: { status: 'ok', email } });
                 await backupNow(true);
-              })}>{busy === 'connect' ? 'Connecting…' : drive.status === 'signed_out' ? 'Reconnect Google Drive' : 'Connect Google Drive'}</button>
+              })}>{busy === 'connect' ? 'Signing in…' : drive.status === 'signed_out' ? 'Sign in with Google again' : 'Sign in with Google'}</button>
             )}
             {drive.status !== 'off' && drive.status !== 'signed_out' && (
               <>
@@ -73,10 +74,17 @@ export function BackupCenter() {
                   <RefreshCw size={16} className={busy === 'now' ? 'animate-spin' : ''} /> Back up now
                 </button>
                 <button className="btn-soft" disabled={!!busy} onClick={() => run('list', async () => setList(await listDriveBackups()))}><History size={16} /> Restore…</button>
+                <button className="btn-ghost" disabled={!!busy} onClick={() => run('switch', async () => {
+                  if (!(await askConfirm(`Sign out of ${drive.email ?? 'this Google account'} and back up to a different Google account instead? Backups already in the old account's Drive stay there.`, 'Use a different account', false))) return;
+                  const email = await switchDriveAccount();
+                  useBackup.setState({ drive: { status: 'ok', email } });
+                  await backupNow(true);
+                  toast(`Now backing up to ${email ?? 'the new Google account'}`);
+                })}>{busy === 'switch' ? 'Switching…' : 'Use a different Google account'}</button>
                 <button className="btn-ghost text-muted" disabled={!!busy} onClick={async () => {
-                  if (!(await askConfirm('Stop backing up to Google Drive on this phone? Backups already in Drive stay there.', 'Disconnect', false))) return;
+                  if (!(await askConfirm(`Sign out of ${drive.email ?? 'Google'} and stop backing up on this phone? Backups already in your Drive stay there.`, 'Sign out', false))) return;
                   await disconnectDrive(); useBackup.setState({ drive: { status: 'off' } });
-                }}>Disconnect</button>
+                }}>Sign out</button>
               </>
             )}
           </div>
@@ -255,6 +263,7 @@ export function RestoreOnWelcome() {
   return (
     <div className="mt-2 rounded-2xl border border-line p-4 space-y-3">
       <p className="font-bold">Already have Tandem data?</p>
+      {cfg?.enabled && <p className="text-xs text-muted -mt-2">Sign in with the Google account you backed up to. You’ll pick the account on Google’s screen.</p>}
       {cfg?.enabled && (
         <button className="btn-soft w-full h-12" disabled={busy} onClick={async () => {
           setBusy(true); setErr('');
@@ -262,9 +271,9 @@ export function RestoreOnWelcome() {
             const email = await connectDrive();
             await restoreFromDrive();
             useBackup.setState({ drive: { status: 'ok', email } });
-            toast(`Restored your data from ${email ?? 'Google Drive'}`);
+            toast(`Restored your data from ${email ?? 'your Google Drive'}`);
           } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
-        }}><CloudUpload size={18} /> {busy ? 'Restoring…' : 'Restore from Google Drive'}</button>
+        }}><CloudUpload size={18} /> {busy ? 'Restoring…' : 'Sign in with Google and restore'}</button>
       )}
       <RestoreFromPhone compact />
       {err && <p role="alert" className="text-sm text-bad">{err}</p>}
