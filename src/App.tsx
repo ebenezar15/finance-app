@@ -8,6 +8,8 @@ import { purgeTrash } from './db/db';
 import { clearToFreshStart, demoUntouched } from './db/seed';
 import { EmbedBanner } from './components/EmbedBanner';
 import { startCloudSync, useSync } from './lib/cloudSync';
+import { startAutoBackup } from './lib/autoBackup';
+import { NewerDataBanner } from './components/BackupCenter';
 
 /** Asks the browser not to evict the household's data under storage pressure (Chrome, Safari 15.2+). */
 function requestPersistentStorage() {
@@ -73,6 +75,8 @@ export default function App() {
 
   const syncReady = useSync((s) => s.ready);
   useEffect(() => { startCloudSync(); requestPersistentStorage(); }, []);
+  // Installed app: automatic backups to Google Drive / a phone folder once a household exists.
+  useEffect(() => { if (profile?.onboarded) startAutoBackup().catch(console.error); }, [profile?.onboarded]);
   // First open shows the clean setup screen (the demo is an option there). Devices that were
   // given the demo automatically by an earlier version get it removed, but only if nobody has
   // touched it; anything the person entered is never deleted without asking.
@@ -92,12 +96,14 @@ export default function App() {
   }, [params, openQuickAdd, nav]);
 
   if (!profile || (!syncReady && !profile.onboarded)) return <div className="min-h-screen bg-bg grid place-items-center text-sm text-muted">Loading your household…</div>;
-  if (!profile.onboarded) return <Onboarding />;
+  // The setup screen also needs confirmations and toasts (e.g. restoring a backup on a wiped phone).
+  if (!profile.onboarded) return <><Onboarding /><ConfirmHost /><Toasts /></>;
   if (locked) return <LockScreen />;
 
   return (
     <Layout>
       <EmbedBanner />
+      <NewerDataBanner />
       <Suspense fallback={<div className="h-64 animate-pulse rounded-3xl bg-sunk/60 mt-6" />}>
         <Routes>
           <Route path="/" element={<Home />} />

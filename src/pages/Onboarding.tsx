@@ -8,6 +8,7 @@ import { fiftyThirtyTwenty } from '../lib/finance';
 import { CurrencySelect, guessCurrency } from '../components/CurrencySelect';
 import { formatMoney, toMinor } from '../lib/money';
 import iconUrl from '../assets/icon.svg';
+import { RestoreOnWelcome } from '../components/BackupCenter';
 
 const STYLES: { id: BudgetStyle; name: string; body: string }[] = [
   { id: 'envelope', name: 'Envelopes', body: 'Give each category a monthly amount. Unused money can roll over.' },
@@ -82,7 +83,7 @@ export default function Onboarding() {
           <div className="relative flex items-center gap-2.5"><img src={iconUrl} alt="" className="h-9 w-9 rounded-xl ring-1 ring-white/20" /><span className="text-xl font-extrabold tracking-tight">Tandem</span></div>
           <div className="relative max-w-lg">
             <h1 className="text-[40px] md:text-[56px] font-extrabold tracking-[-0.04em] leading-[0.98]">Run the household’s money together.</h1>
-            <p className="mt-4 text-[17px] opacity-80 max-w-md">Budgets, bills, goals and the whole family’s spending in one place. Private by default — your data never leaves this device unless you turn on sync.</p>
+            <p className="mt-4 text-[17px] opacity-80 max-w-md">Budgets, bills, goals and the whole family’s spending in one place. Private by default: your data stays on your phone, with automatic backups to your own Google Drive when you turn them on.</p>
           </div>
         </div>
         <div className="p-8 md:p-14 flex flex-col justify-center gap-4 max-w-lg w-full mx-auto">
@@ -90,6 +91,7 @@ export default function Onboarding() {
           <p className="sub -mt-2">Setup takes about two minutes. You can change everything later.</p>
           <button className="btn-primary h-14 text-base" onClick={() => setStep(0)}>Set up my household</button>
           <button className="btn-soft h-14 text-base" onClick={demo} disabled={busy}><Sparkles size={18} /> {busy ? 'Building a demo family…' : 'Explore with demo data'}</button>
+          <RestoreOnWelcome />
           <label className="mt-2 flex items-center gap-3 text-sm text-muted">Currency
             <CurrencySelect className="field h-10 flex-1 min-w-0" value={currency} onChange={setCurrency} />
           </label>

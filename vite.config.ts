@@ -41,12 +41,12 @@ export default defineConfig(({ mode }) => {
         ],
         shortcuts: [{ name: 'Add expense', short_name: 'Add', url: './?add=1', icons: [{ src: 'icon-192.png', sizes: '192x192' }] }],
       },
-      workbox: { clientsClaim: true, skipWaiting: true, cleanupOutdatedCaches: true, globPatterns: ['**/*.{js,css,html,svg,png,woff,woff2}'], navigateFallback: 'index.html' },
+      workbox: { clientsClaim: true, skipWaiting: true, cleanupOutdatedCaches: true, globPatterns: ['**/*.{js,css,html,svg,png,woff,woff2}'], navigateFallback: 'index.html', navigateFallbackDenylist: [/^\/api\//] },
     }),
   ],
   build: embed
     ? { outDir: 'dist-embed', assetsInlineLimit: 100_000_000 }
     : { rollupOptions: { output: { manualChunks: { charts: ['recharts'], db: ['dexie', 'dexie-react-hooks'] } } } },
-  test: { environment: 'jsdom', setupFiles: ['src/test-setup.ts'], include: ['src/**/*.test.ts'] },
+  test: { environment: 'jsdom', setupFiles: ['src/test-setup.ts'], include: ['src/**/*.test.ts', 'api/**/*.test.js'] },
   } as any;
 });

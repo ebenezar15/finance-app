@@ -4,7 +4,7 @@
   "installCommand": "npm ci",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/((?!assets/|sw\\.js|workbox-.*\\.js|manifest\\.webmanifest|.*\\.(?:png|svg|ico|json|txt)$).*)", "destination": "/index.html" }],
+  "rewrites": [{ "source": "/((?!api/|assets/|sw\\.js|workbox-.*\\.js|manifest\\.webmanifest|.*\\.(?:png|svg|ico|json|txt)$).*)", "destination": "/index.html" }],
   "headers": [
     { "source": "/sw.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }, { "key": "Service-Worker-Allowed", "value": "/" }] },
     { "source": "/manifest.webmanifest", "headers": [{ "key": "Content-Type", "value": "application/manifest+json" }, { "key": "Cache-Control", "value": "no-cache" }] },

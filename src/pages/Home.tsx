@@ -13,6 +13,7 @@ import {
 import { useUI } from '../store/ui';
 import { APP_LOCALE } from '../lib/locale';
 import { InstallNudge } from '../components/InstallApp';
+import { useBackup } from '../lib/autoBackup';
 
 const CARD_NAMES: Record<string, string> = {
   flow: 'Cash-flow river', budgets: 'Budgets', bills: 'Upcoming bills', goals: 'Goals', trend: 'Income vs spending', networth: 'Net worth', insights: 'Insights',
@@ -238,6 +239,8 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
         </section>
       )}
 
+      {import.meta.env.VITE_EMBED !== '1' && data.all.length > 0 && <BackupNudge />}
+
       <InstallNudge />
 
       <div className="grid lg:grid-cols-2 gap-6">
@@ -347,5 +350,20 @@ function Jar({ fill }: { fill: number }) {
       <clipPath id="jar"><path d="M12 14h48a6 6 0 0 1 6 6v74a8 8 0 0 1-8 8H14a8 8 0 0 1-8-8V20a6 6 0 0 1 6-6z" /></clipPath>
       <rect x="0" y={102 - h} width="72" height={h} fill="rgb(var(--good))" opacity=".85" clipPath="url(#jar)" style={{ transition: 'all .8s' }} />
     </svg>
+  );
+}
+
+/** Shown until at least one automatic backup (Google Drive or phone folder) is switched on. */
+function BackupNudge() {
+  const { drive, phone } = useBackup();
+  if (drive.status !== 'off' || phone.status !== 'off') return null;
+  return (
+    <section className="panel p-5 flex flex-wrap items-center gap-4 border-warn/40">
+      <div className="flex-1 min-w-[14rem]">
+        <p className="font-bold">Your data isn’t backed up yet</p>
+        <p className="sub">Phones can clear app data. Turn on automatic backup to Google Drive and to this phone so you never lose it.</p>
+      </div>
+      <Link to="/settings" className="btn-primary">Turn on backup</Link>
+    </section>
   );
 }

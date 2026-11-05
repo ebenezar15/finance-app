@@ -24,6 +24,13 @@ Tandem is an installable web app: one codebase that runs full screen from the ho
 - **Vercel (recommended):** `vercel.json` is included. On vercel.com choose **Add New → Project**, import this repo, name the project (e.g. `tandem-money`) and press **Deploy**. Every push redeploys automatically. The address is `https://<project-name>.vercel.app`.
 - **Hosting your own install link:** merge to `main` and turn on GitHub Pages (Settings → Pages → Source: GitHub Actions). The `pages.yml` workflow publishes it at `https://<you>.github.io/finance-app/`.
 
+## Automatic backup (installed app)
+
+- **Google Drive:** Settings → Automatic backup → Connect Google Drive. Tandem backs up about 30 seconds after changes and when the app goes to the background, keeping one file per day for 30 days in a private "Tandem backups" folder. Tandem can only see files it created. Needs the one-time setup in `docs/GOOGLE_DRIVE_SETUP.md`.
+- **On the phone:** choose a backup folder (Chrome on Android and desktop) and Tandem writes a dated copy there automatically. Elsewhere, "Save a copy now" saves or shares a file.
+- **Restore:** a fresh or wiped app offers "Restore from Google Drive" and "Pick a backup file" on its first screen. A device with older data than Drive shows an **Update** banner.
+- Empty or not-yet-set-up households are never uploaded, so a wiped phone can't overwrite a good backup.
+
 ## Memory, sign-in and sync
 
 - **On the device:** everything is saved in the browser's database (IndexedDB) and survives restarts. Data is never reset unless you choose **Erase everything**.

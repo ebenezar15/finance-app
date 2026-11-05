@@ -19,6 +19,7 @@ import { SyncBadge } from '../components/SyncBadge';
 import { canShareFiles, saveFile, shareFile } from '../lib/download';
 import { askConfirm, useUI } from '../store/ui';
 import { APP_LOCALE } from '../lib/locale';
+import { BackupCenter } from '../components/BackupCenter';
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleDateString(APP_LOCALE, { month: 'long' }));
 const STYLES: { value: BudgetStyle; label: string }[] = [
@@ -55,7 +56,7 @@ export default function Settings() {
   return (
     <div className="space-y-6 pt-2 max-w-3xl">
       <div>
-        <p className="sub font-semibold">{import.meta.env.VITE_EMBED === '1' ? 'Private to your account' : 'Everything stays on this device'}</p>
+        <p className="sub font-semibold">{import.meta.env.VITE_EMBED === '1' ? 'Private to your account' : 'Your data, backed up where you choose'}</p>
         <h1 className="h1">Settings</h1>
       </div>
       <ProfilePanel key={JSON.stringify([profile.appName, profile.primaryUser, profile.currency, profile.fyStartMonth, profile.budgetStyle])} profile={profile} />
@@ -65,6 +66,7 @@ export default function Settings() {
         <p className="sub">Bring your entries over from the CashBook app (Excel or CSV export), or from a bank statement.</p>
         <Link to="/inbox" className="btn-primary mt-3 inline-flex">Import from CashBook</Link>
       </Panel>
+      {import.meta.env.VITE_EMBED !== '1' && <BackupCenter />}
       <Backup currency={profile.currency} />
       <DemoData currency={profile.currency} />
       <Panel title={<span className="flex items-center gap-2"><Cloud size={18} /> Sync & sign-in</span>}>
@@ -72,7 +74,7 @@ export default function Settings() {
         <p className="sub mt-3">
           {import.meta.env.VITE_EMBED === '1'
             ? 'You’re signed in with your Claude account. Your household is saved privately to it, so it’s there on any phone or computer where you open this link. Nobody else, including whoever shared the link, can see it.'
-            : 'This copy keeps everything on this device. To move it to a new phone, send yourself an encrypted backup (Data and backup) and restore it there.'}
+            : 'Turn on Automatic backup below: connect Google Drive and use the same Google account on each device. Your data is backed up after every change, and a device with older data offers to update.'}
         </p>
       </Panel>
       <Panel title={<span className="flex items-center gap-2"><Smartphone size={18} /> Install on your phone</span>}>

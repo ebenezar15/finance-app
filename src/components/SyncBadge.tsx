@@ -1,5 +1,6 @@
 import { Cloud, CloudOff, HardDrive, RefreshCw } from 'lucide-react';
 import { useSync } from '../lib/cloudSync';
+import { useBackup } from '../lib/autoBackup';
 
 const ago = (t?: number) => {
   if (!t) return '';
@@ -11,6 +12,21 @@ const ago = (t?: number) => {
 export function SyncBadge({ detailed = false }: { detailed?: boolean }) {
   const { status, who, at, message } = useSync();
   const embed = import.meta.env.VITE_EMBED === '1';
+  const backup = useBackup();
+  if (!embed) {
+    const d = backup.drive, ph = backup.phone;
+    const [I, t, txt] =
+      d.status === 'ok' || d.status === 'saving' ? [Cloud, 'text-good', `Backed up to Google Drive${d.at ? ` · ${ago(d.at)}` : ''}`]
+      : d.status === 'signed_out' || d.status === 'error' ? [CloudOff, 'text-warn', 'Drive backup paused · see Settings']
+      : ph.status === 'ok' ? [HardDrive, 'text-good', `Backed up on this phone${ph.at ? ` · ${ago(ph.at)}` : ''}`]
+      : [CloudOff, 'text-warn', 'Not backed up · turn on in Settings'];
+    return (
+      <p className={`flex items-start gap-2 ${detailed ? 'text-sm' : 'text-[12px] px-1'} font-semibold ${t}`} role="status">
+        <I size={detailed ? 16 : 14} className={`shrink-0 mt-0.5 ${d.status === 'saving' ? 'animate-pulse' : ''}`} aria-hidden />
+        <span className={detailed ? '' : 'text-muted'}>{txt}</span>
+      </p>
+    );
+  }
   const [Icon, tone, text] =
     status === 'synced' ? [Cloud, 'text-good', `Synced${who ? ` to ${who}’s account` : ' to your account'}${at ? ` · ${ago(at)}` : ''}`]
     : status === 'saving' || status === 'connecting' ? [RefreshCw, 'text-primary', status === 'saving' ? 'Saving to your account…' : 'Connecting to your account…']
