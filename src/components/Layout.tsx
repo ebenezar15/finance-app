@@ -28,6 +28,7 @@ const TABS = ['/', '/activity', '/budgets', '/insights'];
 
 export function Layout({ children }: { children: ReactNode }) {
   const { openQuickAdd, hideAmounts, toggleHide, viewAs, setViewAs } = useUI();
+  const quickOpen = useUI((s) => s.quickAdd.open);
   const data = useData();
   const profile = useProfile();
   const nav = useNavigate();
@@ -52,6 +53,10 @@ export function Layout({ children }: { children: ReactNode }) {
 
   const limited = !!data?.viewer;
   const items = limited ? NAV.filter((n) => ['/', '/activity', '/goals'].includes(n.to)) : NAV;
+  const navIndex = items.findIndex((n) => (n.end ? loc.pathname === n.to : loc.pathname.startsWith(n.to)));
+  // Bottom bar slots: 0 Home, 1 Activity, 2 (new entry), 3 Budgets/Goals, 4 More.
+  const slot3 = limited ? '/goals' : TABS[2];
+  const tabSlot: number = loc.pathname === '/' ? 0 : loc.pathname.startsWith('/activity') ? 1 : loc.pathname.startsWith(slot3) ? 3 : 4;
 
   return (
     <div className={`min-h-screen md:flex ${hideAmounts ? 'blurred' : ''}`}>
@@ -61,15 +66,24 @@ export function Layout({ children }: { children: ReactNode }) {
       <aside className="hidden md:flex flex-col w-[248px] shrink-0 h-screen sticky top-0 border-r border-line/70 px-4 py-5 gap-1">
         <div className="flex items-center gap-2.5 px-2 mb-5">
           <img src={iconUrl} alt="" className="h-8 w-8 rounded-[10px]" />
-          <span className="text-[19px] font-extrabold tracking-tight">{profile?.appName ?? 'Tandem'}</span>
+          <span className="font-display text-[21px] font-bold tracking-tight">{profile?.appName ?? 'Tandem'}</span>
         </div>
+        <button className="btn-soft mb-2 justify-start text-muted font-medium" onClick={() => useUI.getState().setPalette(true)}>
+          <Search size={17} /> Search <kbd className="ml-auto whitespace-nowrap text-[11px] font-semibold rounded border border-line px-1.5">{/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
+        </button>
         <button className="btn-primary mb-4 justify-start" onClick={() => openQuickAdd()}>
           <Plus size={18} /> New entry <kbd className="ml-auto text-[11px] opacity-70 font-semibold rounded border border-current/30 px-1.5">N</kbd>
         </button>
-        <nav className="flex flex-col gap-0.5" aria-label="Main">
+        <nav className="relative flex flex-col gap-0.5" aria-label="Main">
+          {navIndex >= 0 && (
+            <span aria-hidden className="absolute inset-x-0 h-10 rounded-xl bg-surface shadow-[var(--shadow)]"
+              style={{ translate: `0 ${navIndex * 42}px`, transition: 'translate .35s cubic-bezier(.2,.8,.2,1)' }}>
+              <span className="absolute left-0 top-2.5 bottom-2.5 w-[3px] rounded-full bg-primary" />
+            </span>
+          )}
           {items.map(({ to, label, icon: Icon, end }) => (
             <NavLink key={to} to={to} end={end}
-              className={({ isActive }) => `flex items-center gap-3 h-10 px-3 rounded-xl text-[14px] font-semibold transition-colors ${isActive ? 'bg-surface text-ink shadow-[var(--shadow)]' : 'text-muted hover:text-ink hover:bg-sunk/70'}`}>
+              className={({ isActive }) => `relative flex items-center gap-3 h-10 px-3 rounded-xl text-[14px] font-semibold transition-colors ${isActive ? 'text-ink' : 'text-muted hover:text-ink hover:bg-sunk/70'}`}>
               <Icon size={18} strokeWidth={2.2} />{label}
               {to === '/inbox' && reviewCount > 0 && <span className="ml-auto text-[11px] font-bold bg-warn/20 text-warn rounded-full px-2 py-0.5">{reviewCount}</span>}
             </NavLink>
@@ -88,29 +102,33 @@ export function Layout({ children }: { children: ReactNode }) {
         {/* Mobile top bar */}
         <header className="md:hidden sticky top-0 z-30 bg-bg/85 backdrop-blur-md flex items-center gap-2 px-4 h-14 pt-[env(safe-area-inset-top)]">
           <img src={iconUrl} alt="" className="h-7 w-7 rounded-[9px]" />
-          <span className="font-extrabold tracking-tight text-[17px]">{profile?.appName ?? 'Tandem'}</span>
+          <span className="font-display font-bold tracking-tight text-[19px]">{profile?.appName ?? 'Tandem'}</span>
           <div className="ml-auto flex items-center gap-1">
-            <button className="btn-ghost h-10 w-10 p-0" aria-label="Search" onClick={() => nav('/activity?focus=1')}><Search size={19} /></button>
+            <button className="btn-ghost h-10 w-10 p-0" aria-label="Search and commands" onClick={() => useUI.getState().setPalette(true)}><Search size={19} /></button>
             <button className="btn-ghost h-10 w-10 p-0" aria-label={hideAmounts ? 'Show amounts' : 'Hide amounts'} onClick={toggleHide}>{hideAmounts ? <Eye size={19} /> : <EyeOff size={19} />}</button>
             {viewAs && data?.member(viewAs) && <button onClick={() => setViewAs(null)} aria-label="Leave member view"><Avatar m={data.member(viewAs)} size={30} /></button>}
           </div>
         </header>
 
-        <main id="main" className="px-4 md:px-8 lg:px-10 pt-2 md:pt-8 pb-28 md:pb-12 max-w-[1280px] mx-auto">{children}</main>
+        <main id="main" className="px-4 md:px-8 lg:px-10 pt-2 md:pt-8 pb-28 md:pb-12 max-w-[1280px] mx-auto">
+          <div key={loc.pathname} className="page-enter">{children}</div>
+        </main>
       </div>
 
       {/* Bottom tabs — phones */}
       <nav aria-label="Main" className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-surface/95 backdrop-blur-md border-t border-line/70 pb-[env(safe-area-inset-bottom)]">
-        <div className="grid grid-cols-5 h-16 items-center">
+        <div className="relative grid grid-cols-5 h-16 items-center">
+          {tabSlot !== 2 && <span aria-hidden className="absolute top-0 h-[3px] w-8 rounded-b-full bg-primary"
+            style={{ left: `${(tabSlot + 0.5) * 20}%`, translate: '-50% 0', transition: 'left .35s cubic-bezier(.2,.8,.2,1)' }} />}
           {TABS.slice(0, 2).map((to) => <Tab key={to} to={to} />)}
           <div className="grid place-items-center">
             <button onClick={() => openQuickAdd()} aria-label="New entry"
-              className="h-14 w-14 -mt-6 rounded-[20px] bg-primary text-onprimary grid place-items-center shadow-lg shadow-primary/30 active:scale-95 transition-transform">
-              <Plus size={26} strokeWidth={2.6} />
+              className="h-14 w-14 -mt-6 rounded-[20px] bg-primary text-onprimary grid place-items-center shadow-lg shadow-primary/30 active:scale-90 transition-transform">
+              <Plus size={26} strokeWidth={2.6} style={{ rotate: quickOpen ? '135deg' : '0deg', transition: 'rotate .35s cubic-bezier(.2,.8,.2,1)' }} />
             </button>
           </div>
           {limited ? <Tab to="/goals" /> : <Tab to={TABS[2]} />}
-          <button onClick={() => setMore(true)} className="flex flex-col items-center gap-0.5 text-muted text-[11px] font-semibold relative">
+          <button onClick={() => setMore(true)} className={`flex flex-col items-center gap-0.5 text-[11px] font-semibold relative ${tabSlot === 4 ? 'text-primary' : 'text-muted'}`}>
             <MoreHorizontal size={22} />More
             {reviewCount > 0 && <span className="absolute top-0 right-[calc(50%-18px)] h-2 w-2 rounded-full bg-warn" />}
           </button>

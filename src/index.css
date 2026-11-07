@@ -1,4 +1,5 @@
 @import '@fontsource-variable/manrope/wght.css';
+@import '@fontsource-variable/bricolage-grotesque/wdth.css';
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -19,9 +20,18 @@
   --bad: 201 55 82;
   --indigo: 91 108 240;
   --shadow: 0 1px 0 rgb(23 32 46 / .04), 0 8px 24px -12px rgb(15 76 92 / .18);
+  /* The tide hero: deep water by day; at night a dark surface with the scheme's colour as the water. */
+  --tide-bg: var(--primary);
+  --tide-fg: var(--onprimary);
+  --tide-wave: var(--onprimary);
+  --tide-boost: 1;
   color-scheme: light;
 }
 :root[data-theme='dark'] {
+  --tide-bg: var(--surface);
+  --tide-fg: var(--ink);
+  --tide-wave: var(--primary);
+  --tide-boost: 1.9;
   --bg: 11 19 23;
   --surface: 18 29 35;
   --sunk: 8 14 17;
@@ -62,22 +72,26 @@ body {
   text-rendering: optimizeLegibility;
 }
 .num { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; letter-spacing: -0.01em; }
-.display { font-weight: 800; letter-spacing: -0.035em; line-height: 0.95; font-variant-numeric: tabular-nums; }
+/* Display type: Bricolage Grotesque, condensed for big figures so long amounts still fit a phone. */
+.font-display { font-family: 'Bricolage Grotesque Variable', 'Manrope Variable', system-ui, sans-serif; }
+.display { font-family: 'Bricolage Grotesque Variable', 'Manrope Variable', system-ui, sans-serif; font-weight: 700; font-stretch: 82%; letter-spacing: -0.03em; line-height: 0.92; font-variant-numeric: tabular-nums; }
 
 :focus-visible { outline: 2px solid rgb(var(--primary)); outline-offset: 2px; border-radius: 6px; }
 
 @layer components {
-  .panel { @apply bg-surface rounded-[22px] border border-line/70; box-shadow: var(--shadow); }
-  .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 h-11 font-semibold text-sm transition-colors disabled:opacity-50 select-none; }
+  .panel { @apply bg-surface rounded-[22px] border border-line/70 min-w-0; box-shadow: var(--shadow); }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 h-11 font-semibold text-sm disabled:opacity-50 select-none; transition: background-color .15s, color .15s, filter .15s, scale .12s cubic-bezier(.2,.8,.2,1); }
+  .btn:not(:disabled):active { scale: .96; }
   .btn-primary { @apply btn bg-primary text-onprimary hover:brightness-110 active:brightness-95; }
   .btn-ghost { @apply btn text-ink hover:bg-sunk; }
   .btn-soft { @apply btn bg-sunk text-ink hover:bg-line/60; }
-  .chip { @apply inline-flex items-center gap-1.5 rounded-full px-3 h-8 text-[13px] font-semibold border border-line bg-surface hover:bg-sunk transition-colors; }
+  .chip { @apply inline-flex items-center gap-1.5 rounded-full px-3 h-8 text-[13px] font-semibold border border-line bg-surface hover:bg-sunk; transition: background-color .15s, color .15s, border-color .15s, scale .12s; }
+  .chip:active { scale: .95; }
   .chip[aria-pressed='true'], .chip[aria-checked='true'] { @apply bg-ink text-surface border-ink; }
   .field { @apply w-full h-11 rounded-xl bg-sunk border border-transparent px-3.5 text-[15px] placeholder:text-muted/70 focus:border-primary focus:bg-surface outline-none transition-colors; }
   .label { @apply block text-[13px] font-semibold text-muted mb-1.5; }
-  .h1 { @apply text-[28px] md:text-[34px] font-extrabold tracking-tight leading-tight; }
-  .h2 { @apply text-[17px] font-bold tracking-tight; }
+  .h1 { @apply font-display text-[30px] md:text-[38px] font-bold leading-[1.05]; letter-spacing: -0.025em; font-stretch: 90%; }
+  .h2 { @apply font-display text-[18px] font-semibold; letter-spacing: -0.01em; }
   .sub { @apply text-sm text-muted; }
 }
 
@@ -91,8 +105,30 @@ body {
 .animate-rise { animation: rise .35s cubic-bezier(.2,.8,.2,1) both; }
 .animate-pop { animation: pop .45s cubic-bezier(.2,.8,.2,1) both; }
 
+/* Page change: a short settle, so it's clear the view changed without slowing anyone down. */
+@keyframes page-in { from { opacity: 0; translate: 0 10px } to { opacity: 1; translate: none } }
+.page-enter { animation: page-in .32s cubic-bezier(.2,.8,.2,1) both; }
+
+/* Home's one load sequence: cards settle in order. */
+.stagger > * { animation: page-in .5s cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(var(--i, 0) * 60ms + 120ms); }
+
+/* The tide: layered waves drift sideways. Each layer is twice as wide as the gauge and loops seamlessly. */
+@keyframes drift { from { translate: 0 0 } to { translate: -50% 0 } }
+.wave { animation: drift var(--d, 14s) linear infinite; }
+@keyframes swell { 0%, 100% { translate: 0 0 } 50% { translate: 0 3px } }
+.swell { animation: swell 6s ease-in-out infinite; }
+.tide-paused .wave, .tide-paused .swell { animation-play-state: paused; }
+
+/* Fresh numbers flash softly when they change because of something the person did. */
+@keyframes tick { 0% { opacity: .35; translate: 0 .18em } 100% { opacity: 1; translate: none } }
+
+@keyframes card-flip { 0% { opacity: 0; rotate: x 18deg; translate: 0 6px } 100% { opacity: 1; rotate: none; translate: none } }
+.flip-in { animation: card-flip .45s cubic-bezier(.2,.8,.2,1) both; transform-origin: 50% 0; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+  .wave, .swell { animation: none !important; }
+  .btn:active, .chip:active { scale: none; }
 }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; }

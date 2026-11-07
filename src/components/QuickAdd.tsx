@@ -4,14 +4,36 @@ import { useEffect, useMemo, useState } from 'react';
 import { db, defaultMethodFor, getSetting, setSetting } from '../db/db';
 import { PAYMENT_METHODS } from '../lib/payment';
 import { saveTransaction, useData, useProfile } from '../db/hooks';
-import type { PaymentMethod, TxType } from '../db/types';
+import type { PaymentMethod, Transaction, TxType } from '../db/types';
 import { quickSuggestions, suggestCategory } from '../lib/categorize';
-import { isoDate } from '../lib/dates';
+import { DAY, isoDate } from '../lib/dates';
+import { success } from '../lib/haptics';
 import { evalAmount, splitEvenly, toMinor } from '../lib/money';
 import { useUI } from '../store/ui';
 import { CatIcon, Segmented, Sheet, useFmt } from './ui';
 
 interface Fav { payee: string; amount: number; categoryId?: string }
+
+/** How far back "Log again" looks for entries to repeat. */
+const REPEAT_DAYS = 60;
+const REPEAT_MAX = 6;
+
+/**
+ * Recent distinct expenses, de-duplicated by payee + category + amount, most frequent first and
+ * then most recent. `txs` is newest first, so the first entry seen for a key is its latest.
+ */
+function recentRepeats(txs: Transaction[], now = new Date()): Transaction[] {
+  const since = isoDate(new Date(now.getTime() - REPEAT_DAYS * DAY));
+  const seen = new Map<string, { t: Transaction; n: number; order: number }>();
+  for (const t of txs) {
+    if (t.type !== 'expense' || t.date.slice(0, 10) < since) continue;
+    const key = `${(t.payee ?? '').trim().toLowerCase()}|${t.categoryId ?? ''}|${t.amount}`;
+    const hit = seen.get(key);
+    if (hit) hit.n++;
+    else seen.set(key, { t, n: 1, order: seen.size });
+  }
+  return [...seen.values()].sort((a, b) => b.n - a.n || a.order - b.order).slice(0, REPEAT_MAX).map((x) => x.t);
+}
 
 const KEYS = ['7', '8', '9', '÷', '4', '5', '6', '×', '1', '2', '3', '−', '.', '0', '⌫', '+'];
 
@@ -71,6 +93,7 @@ export function QuickAdd() {
   const value = evalAmount(expr);
   const isExpr = /[+\-*/×÷−]/.test(expr.slice(1));
   const sugg = useMemo(() => (data ? quickSuggestions(data.all, new Date()) : []), [data]);
+  const repeats = useMemo(() => (data ? recentRepeats(data.txs) : []), [data]);
   // Most-used categories first, so the usual choice is one tap away.
   const cats = useMemo(() => {
     if (!data) return [];
@@ -133,6 +156,7 @@ export function QuickAdd() {
       date: when.toISOString(), currency: profile?.currency, splits, source: (quickAdd.draft?.source as 'voice') ?? 'manual',
     });
     setDone(true);
+    success();
     setTimeout(() => {
       closeQuickAdd();
       toast(`Saved ${fmt(amount)}${payee ? ` · ${payee}` : ''}`, async () => { await db.transactions.delete(row.id); });
@@ -152,6 +176,18 @@ export function QuickAdd() {
     if (!expr) setExpr(String(p.amount / 100));
   };
 
+  // Fills the form from a past entry without saving, so the date or amount can still change.
+  const repeat = (t: Transaction) => {
+    if (!data) return;
+    setExpr(String(t.amount / 100));
+    setCategoryId(t.categoryId);
+    setPayee(t.payee ?? '');
+    setNotes(t.notes ?? '');
+    const acct = data.acct(t.accountId);
+    if (acct && !acct.archived) setAccountId(acct.id);
+    setMethod(t.paymentMethod ?? defaultMethodFor(acct?.type));
+  };
+
   if (!data) return null;
   return (
     <Sheet open={quickAdd.open} onOpenChange={(o) => !o && closeQuickAdd()} title={type === 'income' ? 'Add income' : type === 'transfer' ? 'Move money' : 'Add expense'}>
@@ -168,6 +204,23 @@ export function QuickAdd() {
           </div>
           <p className="text-[13px] text-muted num h-5">{isExpr ? expr : expr ? ' ' : 'Type an amount — sums like 250+120×2 work too'}</p>
         </div>
+
+        {type === 'expense' && !expr && repeats.length > 0 && (
+          <div role="group" aria-labelledby="qa-repeat">
+            <span className="label" id="qa-repeat">Log again</span>
+            <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1">
+              {repeats.map((t) => {
+                const c = data.cat(t.categoryId);
+                const name = t.payee || c?.name || 'Expense';
+                return (
+                  <button key={t.id} className="chip shrink-0" onClick={() => repeat(t)} aria-label={`Log again: ${name}, ${fmt(t.amount)}`}>
+                    <span aria-hidden>{c?.emoji ?? '•'}</span>{name} <span className="text-muted num money">{fmt(t.amount)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {type !== 'transfer' && (sugg.length > 0 || favs.length > 0) && (
           <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1" aria-label="Suggestions">

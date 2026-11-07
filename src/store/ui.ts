@@ -25,6 +25,8 @@ interface UI {
   quickAdd: { open: boolean; type?: 'expense' | 'income' | 'transfer'; draft?: Record<string, unknown> };
   toasts: Toast[];
   locked: boolean;
+  /** Command palette visibility. Session-only: not persisted. */
+  paletteOpen: boolean;
   setTheme: (t: Theme) => void;
   setScheme: (id: string) => void;
   toggleHide: () => void;
@@ -34,6 +36,7 @@ interface UI {
   toast: (text: string, undo?: Toast['undo']) => void;
   dismiss: (id: number) => void;
   setLocked: (v: boolean) => void;
+  setPalette: (open: boolean) => void;
 }
 
 let n = 0;
@@ -49,6 +52,7 @@ export const useUI = create<UI>()(
       toasts: [],
       locked: false,
       confirmReq: null,
+      paletteOpen: false,
       setTheme: (theme) => set({ theme }),
       setScheme: (scheme) => set({ scheme }),
       toggleHide: () => set((s) => ({ hideAmounts: !s.hideAmounts })),
@@ -62,6 +66,7 @@ export const useUI = create<UI>()(
       },
       dismiss: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
       setLocked: (locked) => set({ locked }),
+      setPalette: (paletteOpen) => set({ paletteOpen }),
     }),
     { name: 'tandem-ui', storage: safeStorage, partialize: (s) => ({ theme: s.theme, scheme: s.scheme, hideAmounts: s.hideAmounts, viewAs: s.viewAs }) },
   ),

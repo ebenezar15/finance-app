@@ -52,21 +52,21 @@ Tandem works in any ISO 4217 currency the browser knows (about 300). Pick one du
 
 On first launch, pick **Explore with demo data** to get a realistic four-person household with 12 months of history, or **Set up my household** for the two-minute onboarding.
 
-Shortcuts on desktop: `N` adds an entry, `/` jumps to search.
+Shortcuts on desktop: `Ctrl K` / `⌘K` opens search and commands (pages, actions, entries), `N` adds an entry, `/` jumps to Activity search, `?` lists every shortcut.
 
 ## What's in it
 
 | Area | Highlights |
 |---|---|
-| Home | Safe-to-spend today, an interactive cash-flow river (income → categories → kept), cards you can reorder or hide, a kid-friendly home with savings jars |
-| Quick add | Keypad-first sheet with a built-in calculator (`250+120×2`), "For what?" notes, how you paid (cash, card, online/UPI, transfer, wallet, cheque), tags, suggestions by time of day, favourites, per-member splits, undo |
+| Home | A tide-gauge hero (today's safe-to-spend over a water level showing how much of this month's spending money is left), a daily money tip or fact (personal when your data suggests one; save, share or get another), an interactive cash-flow river (income → categories → kept), cards you can reorder or hide, a kid-friendly home with savings jars |
+| Quick add | "Log again" chips for your frequent spends, keypad-first sheet with a built-in calculator (`250+120×2`), "For what?" notes, how you paid (cash, card, online/UPI, transfer, wallet, cheque), tags, suggestions by time of day, favourites, per-member splits, undo |
 | Activity | Instant search, filters, bulk edit, CSV export, a 30-day trash |
-| Budgets | Envelope, zero-based, 50/30/20 or simple caps; rollover; burn-rate warnings; event budgets |
+| Budgets | Envelope, zero-based, 50/30/20, simple caps or your own custom groups and percentages; saved budget templates; rollover; burn-rate warnings; event budgets |
 | Bills | Calendar, recurring rules with auto-post, subscription detector with price-change alerts, reminders |
 | Goals & debts | Goal projections, emergency-fund calculator, EMI and amortisation, prepayment simulator, snowball vs avalanche, IOUs |
 | Net worth | Holdings, allocation, reconcile mode, credit utilisation |
 | Insights | Ask about your money (Claude, from aggregated totals only), a year-in-spending heatmap with no-spend streaks, health score (0–100) with its parts shown, 30/60/90-day forecast, what-if sliders, anomalies, a shareable monthly story |
-| Inbox & import | Import from the CashBook app (Excel/CSV: each book becomes an account, balances carried over, categories and payment modes mapped, duplicates skipped), review inbox, bank-alert/SMS parser, CSV and OFX import, voice entry |
+| Inbox & import | Import from the CashBook app (PDF, Excel or CSV: each book becomes an account, balances carried over, categories and payment modes mapped, duplicates skipped), review inbox, bank-alert/SMS parser, CSV and OFX import, voice entry |
 | Family | Roles, who-spent-what, pocket money and chores, split and settle |
 | Settings | Six colour schemes × light/dark (plus high contrast), PIN lock, account sync status, install guide, encrypted backup, restore and share-to-email |
 

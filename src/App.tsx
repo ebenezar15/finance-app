@@ -3,6 +3,7 @@ import { Route, Routes, useNavigate, useSearchParams } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { LockScreen, useAutoLock } from './components/Lock';
 import { QuickAdd } from './components/QuickAdd';
+import { CommandPalette } from './components/CommandPalette';
 import { ConfirmHost, Toasts } from './components/ui';
 import { purgeTrash } from './db/db';
 import { clearToFreshStart, demoUntouched } from './db/seed';
@@ -122,6 +123,7 @@ export default function App() {
         </Routes>
       </Suspense>
       <QuickAdd />
+      <CommandPalette />
       <Toasts />
       <ConfirmHost />
     </Layout>

@@ -79,7 +79,7 @@ function ActivityList({ data }: { data: Data }) {
   const currency = useProfile()?.currency ?? 'USD';
   const toast = useUI((s) => s.toast);
   const searchRef = useRef<HTMLInputElement>(null);
-  const [q, setQ] = useState('');
+  const [q, setQ] = useState(() => params.get('q') ?? '');
   const [f, setF] = useState<Filters>(() => ({ ...EMPTY, cat: params.get('cat') ?? '', month: params.get('month') ?? '' }));
   const [showFilters, setShowFilters] = useState(false);
   const [limit, setLimit] = useState(PAGE);
@@ -93,7 +93,9 @@ function ActivityList({ data }: { data: Data }) {
   const focus = params.get('focus');
   const pCat = params.get('cat');
   const pMonth = params.get('month');
+  const pQ = params.get('q'); // the command palette links entries here as ?q=<payee>
   useEffect(() => { if (focus === '1') searchRef.current?.focus(); }, [focus]);
+  useEffect(() => { if (pQ !== null) setQ(pQ); }, [pQ]);
   useEffect(() => {
     if (pCat !== null || pMonth !== null) setF((x) => ({ ...x, cat: pCat ?? x.cat, month: pMonth ?? x.month }));
   }, [pCat, pMonth]);

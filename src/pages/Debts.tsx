@@ -76,7 +76,7 @@ export default function Debts() {
             action={<button className="btn-primary" onClick={() => setLoanForm({ open: true })}><Plus size={17} /> Add a loan</button>} />
         ) : (
           <ul className="grid gap-3 md:grid-cols-2">
-            {data.loanOut.map((l) => <li key={l.loan.id}><LoanCard l={l} onOpen={() => setOpenId(l.loan.id)} /></li>)}
+            {data.loanOut.map((l) => <li key={l.loan.id} className="min-w-0"><LoanCard l={l} onOpen={() => setOpenId(l.loan.id)} /></li>)}
           </ul>
         )}
       </Panel>
@@ -105,7 +105,7 @@ function LoanCard({ l, onOpen }: { l: LoanOut; onOpen: () => void }) {
           <p className="font-bold truncate">{l.loan.name}</p>
           <p className="text-xs text-muted truncate">{l.loan.lender} · {k.label}</p>
         </div>
-        <div className="text-right">
+        <div className="text-right shrink-0">
           <Money value={l.outstanding} className="font-extrabold" />
           <p className="text-xs text-muted">left to pay</p>
         </div>
@@ -383,11 +383,11 @@ function EmiCalculator() {
         <SliderRow id="emi-p" label="Amount" display={fmt(principal)} min={pStep} max={Math.max(principal * 2, 100_000_00)} step={pStep} value={principal} onChange={setPrincipal} />
         <SliderRow id="emi-r" label="Interest rate" display={`${rate.toFixed(1)}% a year`} min={0} max={30} step={0.1} value={rate} onChange={setRate} />
         <SliderRow id="emi-t" label="Term" display={duration(months)} min={6} max={360} step={6} value={months} onChange={setMonths} />
-        <div className="flex items-center gap-5 pt-2">
-          <div className="h-32 w-32 shrink-0" aria-hidden>
+        <div className="flex items-center gap-4 sm:gap-5 pt-2">
+          <div className="h-24 w-24 sm:h-32 sm:w-32 shrink-0" aria-hidden>
             <ResponsiveContainer>
               <PieChart>
-                <Pie data={pie} dataKey="value" innerRadius={40} outerRadius={60} paddingAngle={2} stroke="none" isAnimationActive={false}>
+                <Pie data={pie} dataKey="value" innerRadius="66%" outerRadius="98%" paddingAngle={2} stroke="none" isAnimationActive={false}>
                   {pie.map((p) => <Cell key={p.name} fill={p.colour} />)}
                 </Pie>
               </PieChart>
@@ -398,8 +398,8 @@ function EmiCalculator() {
               <p className="text-[13px] font-semibold text-muted">Monthly payment</p>
               <Money value={pay} className="display text-[32px] block" />
             </div>
-            <p className="text-sm flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-primary shrink-0" />Principal <Money value={principal} className="font-bold" /></p>
-            <p className="text-sm flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-warn shrink-0" />Interest <Money value={interest} className="font-bold" /> ({total ? Math.round((interest / total) * 100) : 0}%)</p>
+            <p className="text-sm flex flex-wrap items-center gap-x-2"><span className="h-2.5 w-2.5 rounded-sm bg-primary shrink-0" />Principal <Money value={principal} className="font-bold" /></p>
+            <p className="text-sm flex flex-wrap items-center gap-x-2"><span className="h-2.5 w-2.5 rounded-sm bg-warn shrink-0" />Interest <Money value={interest} className="font-bold" /> ({total ? Math.round((interest / total) * 100) : 0}%)</p>
             <p className="text-xs text-muted">You would repay <Money value={total} /> in total.</p>
           </div>
         </div>
@@ -518,17 +518,17 @@ function Ious({ data }: { data: Data }) {
   }
 
   const Row = ({ i }: { i: IOU }) => (
-    <li className="flex items-center gap-3 py-3">
-      <span className="h-9 w-9 rounded-full bg-sunk grid place-items-center font-bold text-sm shrink-0" aria-hidden>{i.person.slice(0, 1)}</span>
+    <li className="flex items-center gap-2 sm:gap-3 py-3">
+      <span className="hidden min-[360px]:grid h-9 w-9 rounded-full bg-sunk place-items-center font-bold text-sm shrink-0" aria-hidden>{i.person.slice(0, 1)}</span>
       <div className="min-w-0 flex-1">
         <p className="font-semibold text-sm truncate">{i.person}</p>
         <p className="text-xs text-muted truncate">{i.note || 'No note'} · {localDate(i.date).toLocaleDateString(APP_LOCALE, { day: 'numeric', month: 'short' })}</p>
       </div>
       <Money value={Math.abs(i.amount)} className="font-bold text-sm" />
-      <div className="flex">
-        {i.amount > 0 && <button className="btn-ghost h-9 w-9 p-0" aria-label={`Copy a reminder for ${i.person}`} title="Copy reminder" onClick={() => copy(i)}><Copy size={16} /></button>}
-        <button className="btn-ghost h-9 w-9 p-0" aria-label={`Edit entry for ${i.person}`} onClick={() => setForm({ open: true, iou: i })}><Pencil size={16} /></button>
-        <button className="btn-ghost h-9 w-9 p-0" aria-label={`Mark ${i.person} as settled`} title="Settle" onClick={() => settle(i)}><Check size={16} /></button>
+      <div className="flex shrink-0">
+        {i.amount > 0 && <button className="btn-ghost h-9 w-8 sm:w-9 p-0" aria-label={`Copy a reminder for ${i.person}`} title="Copy reminder" onClick={() => copy(i)}><Copy size={16} /></button>}
+        <button className="btn-ghost h-9 w-8 sm:w-9 p-0" aria-label={`Edit entry for ${i.person}`} onClick={() => setForm({ open: true, iou: i })}><Pencil size={16} /></button>
+        <button className="btn-ghost h-9 w-8 sm:w-9 p-0" aria-label={`Mark ${i.person} as settled`} title="Settle" onClick={() => settle(i)}><Check size={16} /></button>
       </div>
     </li>
   );
@@ -539,7 +539,7 @@ function Ious({ data }: { data: Data }) {
       {openIous.length === 0 ? (
         <p className="sub">Nothing outstanding. When you cover someone’s ticket or borrow for a cab, add it here so nobody forgets.</p>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 md:grid-cols-2 [&>*]:min-w-0">
           <div>
             <div className="flex items-baseline justify-between"><h3 className="font-bold text-sm">They owe you</h3><Money value={owed.reduce((s, i) => s + i.amount, 0)} className="font-bold text-good" /></div>
             {owed.length ? <ul className="divide-y divide-line/70">{owed.map((i) => <Row key={i.id} i={i} />)}</ul> : <p className="sub py-3">No one owes you right now.</p>}

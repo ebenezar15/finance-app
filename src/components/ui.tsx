@@ -1,14 +1,19 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useProfile } from '../db/hooks';
 import type { Category, Member } from '../db/types';
 import { formatMoney } from '../lib/money';
 import { useUI } from '../store/ui';
+import { useMounted, useTween } from '../lib/motion';
 
-export function Money({ value, className = '', sign, compact, currency }: { value: number; className?: string; sign?: boolean; compact?: boolean; currency?: string }) {
+export function Money({ value, className = '', sign, compact, currency, animate }: { value: number; className?: string; sign?: boolean; compact?: boolean; currency?: string; animate?: boolean }) {
   const profile = useProfile();
-  const text = formatMoney(value, currency ?? profile?.currency ?? lastCurrency(), { sign, compact });
+  const cur = currency ?? profile?.currency ?? lastCurrency();
+  const shown = useTween(value, 900, !!animate);
+  const text = formatMoney(animate ? shown : value, cur, { sign, compact });
+  // Screen readers get the final figure, not every frame of the count.
+  if (animate) return <span className={`money num ${className}`}><span aria-hidden>{text}</span><span className="sr-only">{formatMoney(value, cur, { sign, compact })}</span></span>;
   return <span className={`money num ${className}`}>{text}</span>;
 }
 
@@ -25,7 +30,7 @@ export function useFmt() {
 
 export function Panel({ title, action, children, className = '', pad = true }: { title?: ReactNode; action?: ReactNode; children: ReactNode; className?: string; pad?: boolean }) {
   return (
-    <section className={`panel ${pad ? 'p-5' : ''} ${className}`}>
+    <section className={`panel min-w-0 ${pad ? "p-5" : ""} ${className}`}>
       {(title || action) && (
         <header className={`flex items-center justify-between gap-3 ${pad ? 'mb-4' : 'px-5 pt-5 pb-3'}`}>
           {title && <h2 className="h2">{title}</h2>}
@@ -41,13 +46,14 @@ export function Panel({ title, action, children, className = '', pad = true }: {
 export function Ring({ value, size = 56, stroke = 6, colour = 'rgb(var(--primary))', track = 'rgb(var(--sunk))', children }: { value: number; size?: number; stroke?: number; colour?: string; track?: string; children?: ReactNode }) {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
-  const v = Math.max(0, Math.min(1, value));
+  const mounted = useMounted();
+  const v = mounted ? Math.max(0, Math.min(1, value)) : 0;
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90" aria-hidden>
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={track} strokeWidth={stroke} />
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={colour} strokeWidth={stroke} strokeLinecap="round"
-          strokeDasharray={c} strokeDashoffset={c * (1 - v)} style={{ transition: 'stroke-dashoffset .8s cubic-bezier(.2,.8,.2,1)' }} />
+          strokeDasharray={c} strokeDashoffset={c * (1 - v)} style={{ transition: 'stroke-dashoffset 1s cubic-bezier(.2,.8,.2,1)' }} />
       </svg>
       <div className="absolute inset-0 grid place-items-center">{children}</div>
     </div>
@@ -55,11 +61,12 @@ export function Ring({ value, size = 56, stroke = 6, colour = 'rgb(var(--primary
 }
 
 export function Bar({ value, marker, colour }: { value: number; marker?: number; colour?: string }) {
-  const v = Math.max(0, Math.min(1, value));
+  const mounted = useMounted();
+  const v = mounted ? Math.max(0, Math.min(1, value)) : 0;
   const tone = colour ?? (value >= 1 ? 'rgb(var(--bad))' : marker !== undefined && value > marker + 0.1 ? 'rgb(var(--warn))' : 'rgb(var(--primary))');
   return (
     <div className="relative h-2 rounded-full bg-sunk overflow-visible">
-      <div className="h-full rounded-full" style={{ width: `${v * 100}%`, background: tone, transition: 'width .6s cubic-bezier(.2,.8,.2,1)' }} />
+      <div className="h-full rounded-full" style={{ width: `${v * 100}%`, background: tone, transition: 'width .8s cubic-bezier(.2,.8,.2,1)' }} />
       {marker !== undefined && (
         <div className="absolute -top-1 h-4 w-0.5 rounded bg-ink/40" style={{ left: `${Math.min(1, marker) * 100}%` }} title="Today" />
       )}
@@ -78,7 +85,7 @@ export function Sheet({ open, onOpenChange, title, description, children, wide }
           <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-line md:hidden" aria-hidden />
           <div className="flex items-start justify-between gap-4 mb-4">
             <div>
-              <Dialog.Title className="text-xl font-extrabold tracking-tight">{title}</Dialog.Title>
+              <Dialog.Title className="font-display text-[22px] font-bold tracking-tight leading-tight" style={{ fontStretch: '92%' }}>{title}</Dialog.Title>
               {description ? <Dialog.Description className="sub mt-0.5">{description}</Dialog.Description> : <Dialog.Description className="sr-only">{title}</Dialog.Description>}
             </div>
             <Dialog.Close className="btn-ghost h-9 w-9 p-0 rounded-full" aria-label="Close"><X size={18} /></Dialog.Close>
@@ -91,11 +98,25 @@ export function Sheet({ open, onOpenChange, title, description, children, wide }
 }
 
 export function Segmented<T extends string>({ value, onChange, options, label }: { value: T; onChange: (v: T) => void; options: { value: T; label: ReactNode }[]; label: string }) {
+  // A thumb slides to the chosen option, so the change reads as one movement.
+  const box = useRef<HTMLDivElement>(null);
+  const [thumb, setThumb] = useState<{ x: number; w: number } | null>(null);
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = box.current?.querySelector<HTMLElement>('[aria-checked="true"]');
+      setThumb(el ? { x: el.offsetLeft, w: el.offsetWidth } : null);
+    };
+    measure();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    if (box.current) ro?.observe(box.current);
+    return () => ro?.disconnect();
+  }, [value, options.length]);
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex p-1 rounded-xl bg-sunk gap-1">
+    <div ref={box} role="radiogroup" aria-label={label} className="relative inline-flex max-w-full overflow-x-auto no-scrollbar p-1 rounded-xl bg-sunk gap-1">
+      {thumb && <span aria-hidden className="absolute top-1 bottom-1 left-0 rounded-lg bg-surface shadow-sm" style={{ width: thumb.w, translate: `${thumb.x}px 0`, transition: 'translate .3s cubic-bezier(.2,.8,.2,1), width .3s cubic-bezier(.2,.8,.2,1)' }} />}
       {options.map((o) => (
         <button key={o.value} role="radio" aria-checked={value === o.value} onClick={() => onChange(o.value)}
-          className={`h-8 px-3 rounded-lg text-[13px] font-semibold transition-colors ${value === o.value ? 'bg-surface text-ink shadow-sm' : 'text-muted hover:text-ink'}`}>
+          className={`relative shrink-0 h-8 px-2.5 sm:px-3 rounded-lg text-[13px] font-semibold whitespace-nowrap transition-colors ${value === o.value ? `text-ink ${thumb ? '' : 'bg-surface shadow-sm'}` : 'text-muted hover:text-ink'}`}>
           {o.label}
         </button>
       ))}
@@ -180,7 +201,7 @@ export function Stat({ label, value, hint }: { label: string; value: ReactNode; 
   return (
     <div>
       <p className="text-[13px] font-semibold text-muted">{label}</p>
-      <p className="text-xl font-extrabold tracking-tight num mt-0.5">{value}</p>
+      <p className="font-display text-[22px] font-bold tracking-tight num mt-0.5" style={{ fontStretch: '88%' }}>{value}</p>
       {hint && <p className="text-xs text-muted mt-0.5">{hint}</p>}
     </div>
   );

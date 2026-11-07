@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Inbox, LayoutGrid, Sparkles } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Inbox, LayoutGrid, Plus, Sparkles } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
@@ -13,6 +13,8 @@ import {
 import { useUI } from '../store/ui';
 import { APP_LOCALE } from '../lib/locale';
 import { InstallNudge } from '../components/InstallApp';
+import { TideHero } from '../components/TideHero';
+import { DailyTip, useTipsHidden } from '../components/DailyTip';
 import { useBackup } from '../lib/autoBackup';
 
 const CARD_NAMES: Record<string, string> = {
@@ -33,6 +35,7 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
   const now = useMemo(() => new Date(), []);
   const [offset, setOffset] = useState(0);
   const [customise, setCustomise] = useState(false);
+  const [tipsHidden, setTipsHidden] = useTipsHidden();
   const viewMonth = addMonths(startOfMonth(now), offset);
   const mk = monthKey(viewMonth);
 
@@ -49,6 +52,9 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
   const anomalies = detectAnomalies(data.txs, data.categories, now);
   const hour = now.getHours();
   const greet = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  // Water level: share of this month's spending money still left (what's safe to spend for the rest of the month vs. already spent).
+  const leftThisMonth = Math.max(0, safe.today) * safe.daysLeft;
+  const tide = leftThisMonth + totals.expense > 0 ? leftThisMonth / (leftThisMonth + totals.expense) : 0.5;
   const nwPrev = data.netWorth - totals.net; // rough: last month's closing ≈ now minus this month's net
 
   const cards: Record<string, JSX.Element> = {
@@ -161,7 +167,7 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
     ),
     networth: (
       <Panel title="Net worth" action={<Link to="/wealth" className="text-sm font-semibold text-primary">Details</Link>}>
-        <Money value={data.netWorth} className="display text-[34px]" />
+        <Money value={data.netWorth} animate className="display text-[44px]" />
         <p className={`text-sm font-semibold mt-1 flex items-center gap-1 ${data.netWorth >= nwPrev ? 'text-good' : 'text-bad'}`}>
           {data.netWorth >= nwPrev ? <ArrowUp size={14} /> : <ArrowDown size={14} />}<span className="money num">{fmt(data.netWorth - nwPrev, { sign: true })}</span> this month
         </p>
@@ -205,29 +211,33 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
         <button className="btn-ghost text-muted" onClick={() => setCustomise(true)}><LayoutGrid size={17} /> <span className="hidden sm:inline">Customise</span></button>
       </div>
 
-      {/* Hero: the one number that matters day to day */}
-      <section className="panel overflow-hidden grid md:grid-cols-[1.3fr_1fr]">
-        <div className="p-6 md:p-7 relative">
-          <p className="text-sm font-bold text-muted">Safe to spend today</p>
-          <Money value={safe.today} className="display text-[56px] md:text-[72px] block mt-2 text-primary" />
-          <p className="text-sm text-muted mt-2 max-w-sm">
+      {/* Hero: the one number that matters day to day, over a tide of what's left this month */}
+      <div className="grid lg:grid-cols-[1.55fr_1fr] gap-4 md:gap-6">
+        <TideHero level={tide} label={`${Math.round(tide * 100)}% of this month’s spending money is left, with ${safe.daysLeft} days to go.`}
+          footer={
+            <div className="flex gap-2 flex-wrap items-center">
+              <button className="btn bg-tidefg text-tidebg hover:brightness-105" onClick={() => openQuickAdd('expense')}><Plus size={17} strokeWidth={2.6} /> Log a spend</button>
+              <span className="inline-flex items-center gap-1.5 h-11 px-4 rounded-xl bg-tidefg/10 text-sm font-semibold">This week <Money value={safe.week} animate className="font-extrabold" /></span>
+            </div>
+          }>
+          <p className="text-sm font-semibold text-tidefg/75">Safe to spend today</p>
+          <Money value={safe.today} animate className="display text-[clamp(56px,17vw,96px)] block mt-1 break-all" />
+          <p className="text-sm text-tidefg/80 mt-3 max-w-sm leading-relaxed">
             {safe.limitedBy === 'budget'
-              ? <>What’s left in your budgets, spread across the {safe.daysLeft} days left this month. Bills of <b className="text-ink money num">{fmt(safe.billsLeft)}</b> are already set aside.</>
-              : <>After <b className="text-ink money num">{fmt(safe.billsLeft)}</b> of bills still due and your goal savings, across the {safe.daysLeft} days left this month.</>}
+              ? <>What’s left in your budgets, spread over the {safe.daysLeft} days left this month. <span className="money num font-semibold text-tidefg">{fmt(safe.billsLeft)}</span> of bills is already set aside.</>
+              : <>After <span className="money num font-semibold text-tidefg">{fmt(safe.billsLeft)}</span> of bills still due and your goal savings, over the {safe.daysLeft} days left this month.</>}
           </p>
-          <div className="mt-5 flex gap-2 flex-wrap">
-            <button className="btn-primary" onClick={() => openQuickAdd('expense')}>Log a spend</button>
-            <span className="chip h-11 px-4 text-sm cursor-default">This week <Money value={safe.week} className="font-extrabold" /></span>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-1 border-t md:border-t-0 md:border-l border-line/70">
+        </TideHero>
+        <div className="panel grid grid-cols-2 lg:grid-cols-1 overflow-hidden">
           <HeroStat label="Income this month" value={totals.income} prev={prevTotals.income} good="up" />
           <HeroStat label="Spent this month" value={totals.expense} prev={prevTotals.expense} good="down" pace={pace} />
-          <div className="col-span-2 md:col-span-1 px-6 py-4 border-t border-line/70 flex items-center justify-between">
-            <span className="text-sm font-semibold text-muted">Everyday accounts</span><Money value={data.spendable} className="font-extrabold" />
+          <div className="col-span-2 lg:col-span-1 px-5 md:px-6 py-4 border-t border-line/70 flex items-center justify-between gap-3">
+            <span className="text-sm font-semibold text-muted">Everyday accounts</span><Money value={data.spendable} animate className="font-display text-lg font-bold" />
           </div>
         </div>
-      </section>
+      </div>
+
+      <DailyTip data={data} />
 
       {data.all.length === 0 && (
         <section className="panel p-5 flex flex-wrap items-center gap-4">
@@ -243,11 +253,15 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
 
       <InstallNudge />
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        {order.filter((c) => !c.hidden && cards[c.id]).map((c) => <div key={c.id} className={`min-w-0 ${c.id === 'flow' ? 'lg:col-span-2' : ''}`}>{cards[c.id]}</div>)}
+      <div className="stagger grid lg:grid-cols-2 gap-4 md:gap-6">
+        {order.filter((c) => !c.hidden && cards[c.id]).map((c, i) => <div key={c.id} style={{ ['--i' as string]: i }} className={`min-w-0 ${c.id === 'flow' ? 'lg:col-span-2' : ''}`}>{cards[c.id]}</div>)}
       </div>
 
       <Sheet open={customise} onOpenChange={setCustomise} title="Customise home" description="Reorder or hide cards. Changes save instantly.">
+        <label className="flex items-center gap-2 rounded-xl bg-sunk/60 px-3 h-12 mb-2">
+          <input type="checkbox" className="h-5 w-5 accent-[rgb(var(--primary))]" checked={!tipsHidden} onChange={() => setTipsHidden(!tipsHidden)} />
+          <span className="flex-1 font-semibold text-sm">Daily tip or fact</span>
+        </label>
         <ul className="space-y-2">
           {order.map((c, i) => (
             <li key={c.id} className="flex items-center gap-2 rounded-xl bg-sunk/60 px-3 h-12">
@@ -271,12 +285,13 @@ function HeroStat({ label, value, prev, good, pace }: { label: string; value: nu
   const diff = value - cmp;
   const better = good === 'up' ? diff >= 0 : diff <= 0;
   return (
-    <div className="px-6 py-4 md:py-5 border-l md:border-l-0 md:border-b border-line/70 first:border-l-0">
+    <div className="px-5 md:px-6 py-4 md:py-5 border-l lg:border-l-0 lg:border-b border-line/70 first:border-l-0 min-w-0">
       <p className="text-sm font-semibold text-muted">{label}</p>
-      <Money value={value} className="text-[26px] font-extrabold tracking-tight block" />
+      <Money value={value} animate className="font-display text-[clamp(22px,6.5vw,32px)] font-bold tracking-tight block" />
       {cmp > 0 && (
-        <p className={`text-xs font-semibold flex items-center gap-1 ${better ? 'text-good' : 'text-bad'}`}>
-          {diff >= 0 ? <ArrowUp size={12} /> : <ArrowDown size={12} />}<span className="money num">{fmt(Math.abs(diff))}</span> <span title={pace ? 'Compared with the same point last month' : undefined}>vs last month</span>
+        <p className={`text-xs font-semibold flex flex-wrap items-center gap-x-1 mt-0.5 ${better ? 'text-good' : 'text-bad'}`}>
+          <span className="inline-flex items-center gap-0.5">{diff >= 0 ? <ArrowUp size={12} /> : <ArrowDown size={12} />}<span className="money num">{fmt(Math.abs(diff))}</span></span>
+          <span className="text-muted font-medium" title={pace ? 'Compared with the same point last month' : undefined}>vs last month</span>
         </p>
       )}
     </div>
@@ -313,7 +328,7 @@ function KidsHome({ data }: { data: Data }) {
         </Ring>
         <div>
           <p className="text-sm font-bold text-muted">Left from this month’s pocket money</p>
-          <Money value={left} className="display text-[48px] block mt-1" />
+          <Money value={left} animate className="display text-[56px] block mt-1" />
           <p className="text-sm text-muted mt-1">You get <Money value={allowance} className="font-bold text-ink" /> each month.</p>
         </div>
       </section>
