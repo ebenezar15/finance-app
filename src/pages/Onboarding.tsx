@@ -18,6 +18,7 @@ const STYLES: { id: BudgetStyle; name: string; body: string }[] = [
   { id: 'zero-based', name: 'Zero-based', body: 'Assign every unit of income a job until nothing is left unplanned.' },
   { id: '50-30-20', name: '50 / 30 / 20', body: 'Half on needs, 30% on wants, 20% to savings. Least effort.' },
   { id: 'caps', name: 'Simple caps', body: 'Only set limits on the few categories you want to watch.' },
+  { id: 'custom', name: 'My own plan', body: 'Make your own groups, like Home 40%, Kids 15%, Giving 10%. Change them any time.' },
 ];
 const GOALS = ['Emergency fund', 'Pay off debt', 'Buy a home', 'Kids’ education', 'Retirement', 'Travel', 'New car', 'Start investing'];
 const STEPS = ['You', 'Household', 'Money', 'Style', 'Goals'];

@@ -11,6 +11,7 @@ import { addMonths, daysInMonth, isoDate, monthKey, monthLabel, startOfMonth } f
 import { budgetStatus, fiftyThirtyTwenty, monthTotals, occurrences, spendByCategory, type BudgetStatus } from '../lib/finance';
 import { evalAmount, toMajor, toMinor } from '../lib/money';
 import { APP_LOCALE } from '../lib/locale';
+import { CustomPanel, TemplatesPanel } from '../components/CustomBudget';
 
 /* ───────────────────────── Shared bits ───────────────────────── */
 
@@ -19,6 +20,7 @@ const STYLES: { value: BudgetStyle; label: string; hint: string }[] = [
   { value: 'zero-based', label: 'Zero-based', hint: 'Give every part of this month’s income a job until nothing is left to assign.' },
   { value: '50-30-20', label: '50/30/20', hint: 'Half of income for needs, 30% for wants and 20% for savings.' },
   { value: 'caps', label: 'Caps', hint: 'Set limits only where you need them. Everything else is left untracked.' },
+  { value: 'custom', label: 'Custom', hint: 'Your own groups and percentages of income, like Home 40%, Kids 15% and Giving 10%. Add category budgets inside them if you like.' },
 ];
 
 const STATE_TEXT: Record<BudgetStatus['state'], string> = { ok: 'On track', watch: 'Watch', over: 'Over' };
@@ -156,6 +158,7 @@ function BudgetsView({ data, budgetStyle }: { data: Data; budgetStyle: BudgetSty
       {budgetStyle === 'envelope' && <EnvelopePanel statuses={statuses} data={data} onOpen={setEditing} />}
       {budgetStyle === 'zero-based' && <ZeroBasedPanel statuses={statuses} data={data} income={income} expected={incomeIsExpected} />}
       {budgetStyle === '50-30-20' && <FiftyPanel data={data} month={mk} income={income} expected={incomeIsExpected} pace={pace} />}
+      {budgetStyle === 'custom' && <CustomPanel data={data} month={mk} income={income} expected={incomeIsExpected} pace={pace} />}
       {budgetStyle === 'caps' && <CapsPanel statuses={statuses} data={data} month={mk} onAdd={(categoryId) => setAdding({ open: true, categoryId })} />}
 
       {/* Budget list */}
@@ -170,6 +173,8 @@ function BudgetsView({ data, budgetStyle }: { data: Data; budgetStyle: BudgetSty
           </ul>
         )}
       </Panel>
+
+      <TemplatesPanel data={data} style={budgetStyle} income={income} />
 
       <div className="grid lg:grid-cols-2 gap-6">
         <FamilyPanel data={data} month={mk} now={now} pace={pace} />

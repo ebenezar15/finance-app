@@ -3,7 +3,7 @@ export type Minor = number;
 
 export type Role = 'owner' | 'admin' | 'adult' | 'teen' | 'child' | 'viewer';
 export type AgeGroup = 'adult' | 'teen' | 'child';
-export type BudgetStyle = 'envelope' | 'zero-based' | '50-30-20' | 'caps';
+export type BudgetStyle = 'envelope' | 'zero-based' | '50-30-20' | 'caps' | 'custom';
 
 export interface Member {
   id: string;

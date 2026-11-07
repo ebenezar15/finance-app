@@ -28,6 +28,7 @@ const STYLES: { value: BudgetStyle; label: string }[] = [
   { value: 'zero-based', label: 'Zero-based (give every unit a job)' },
   { value: '50-30-20', label: '50/30/20 (needs, wants, savings)' },
   { value: 'caps', label: 'Spending caps (limits on a few categories)' },
+  { value: 'custom', label: 'Custom (your own groups and percentages)' },
 ];
 interface Online { prices: boolean; ai: boolean; aiKey?: string }
 
