@@ -1,6 +1,6 @@
 import { ArrowLeft, Plus, Sparkles, X } from 'lucide-react';
 import { useState } from 'react';
-import { db, uid } from '../db/db';
+import { db, setSetting, uid } from '../db/db';
 import { saveProfile } from '../db/hooks';
 import { DEFAULT_CATEGORIES, PALETTE, defaultProfile, seedDemo } from '../db/seed';
 import type { Account, BudgetStyle, Member, Role } from '../db/types';
@@ -77,6 +77,7 @@ export default function Onboarding() {
         targetDate: new Date(new Date().getFullYear() + 1 + i, new Date().getMonth(), 1).toISOString().slice(0, 10), priority: (Math.min(3, i + 1)) as 1, contributions: [],
       })));
     });
+    await setSetting('accountPromptDone', true); // the account choice was offered on the welcome screen
     await saveProfile({ ...defaultProfile(currency), primaryUser: name, budgetStyle: style, topGoals: goals, onboarded: true });
   }
 

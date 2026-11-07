@@ -4,6 +4,7 @@ import { Layout } from './components/Layout';
 import { LockScreen, useAutoLock } from './components/Lock';
 import { QuickAdd } from './components/QuickAdd';
 import { CommandPalette } from './components/CommandPalette';
+import { AccountPrompt, useAccountPrompt } from './components/AccountPrompt';
 import { ConfirmHost, Toasts } from './components/ui';
 import { purgeTrash } from './db/db';
 import { clearToFreshStart, demoUntouched } from './db/seed';
@@ -68,6 +69,7 @@ export default function App() {
   const openQuickAdd = useUI((s) => s.openQuickAdd);
   const [params] = useSearchParams();
   const nav = useNavigate();
+  const askAccount = useAccountPrompt();
 
   useEffect(() => {
     if (!profile?.onboarded) return;
@@ -101,6 +103,7 @@ export default function App() {
   // The setup screen also needs confirmations and toasts (e.g. restoring a backup on a wiped phone).
   if (!profile.onboarded) return <><Onboarding /><ConfirmHost /><Toasts /></>;
   if (locked) return <><LockScreen /><ConfirmHost /><Toasts /></>;
+  if (askAccount) return <><AccountPrompt /><ConfirmHost /><Toasts /></>;
 
   return (
     <Layout>
