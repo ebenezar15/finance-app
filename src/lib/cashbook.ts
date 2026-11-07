@@ -86,13 +86,33 @@ const num = (s?: string) => {
   return neg ? -Math.abs(m) : Math.abs(m);
 };
 
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+/** A time at the end of a date cell ("15 Mar 2026 07:45 PM", as PDFs print it). */
+const TRAILING_TIME = /[\s,]+(\d{1,2}:\d{2}(?::\d{2})?\s*(?:[ap]\.?\s?m\.?)?)\s*$/i;
+
 function parseWhen(dateCell: string, timeCell: string | undefined, dayFirst: boolean): Date | null {
+  const tm = TRAILING_TIME.exec(dateCell);
+  if (tm) { dateCell = dateCell.slice(0, tm.index); if (!timeCell?.trim()) timeCell = tm[1]; }
   let d: Date | null = null;
   const n = Number(dateCell);
   if (dateCell && Number.isFinite(n) && n > 20000 && n < 80000) d = excelSerialToDate(n);
-  else {
+  else if (/^\s*\d+[/.-]\d/.test(dateCell)) {
     const iso = parseDate(dateCell, dayFirst);
     if (iso) { const [y, mo, da] = iso.split('-').map(Number); d = new Date(y, mo - 1, da); }
+  } else if (dateCell.trim()) {
+    // Text dates ("15 Mar 2026", "Mar 15, 2026"): read as a local date. Going through an ISO
+    // string (UTC) would shift them to the previous day east of UTC, e.g. in India.
+    const s = dateCell.trim();
+    const m = /^(\d{1,2})[\s-]+([a-z]{3,9})\.?[\s,-]+(\d{2,4})$/i.exec(s) ?? /^([a-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4})$/i.exec(s);
+    const mon = m ? MONTHS.indexOf((/^\d/.test(m[1]) ? m[2] : m[1]).slice(0, 3).toLowerCase()) : -1;
+    if (m && mon >= 0) {
+      const day = Number(/^\d/.test(m[1]) ? m[1] : m[2]);
+      const y = Number(m[3].length === 2 ? `20${m[3]}` : m[3]);
+      d = new Date(y, mon, day);
+    } else {
+      const t = new Date(s);
+      if (!Number.isNaN(t.getTime())) d = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+    }
   }
   if (!d || Number.isNaN(d.getTime())) return null;
   const t = timeCell?.trim();

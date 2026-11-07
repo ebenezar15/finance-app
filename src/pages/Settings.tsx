@@ -20,6 +20,7 @@ import { canShareFiles, saveFile, shareFile } from '../lib/download';
 import { askConfirm, useUI } from '../store/ui';
 import { APP_LOCALE } from '../lib/locale';
 import { BackupCenter } from '../components/BackupCenter';
+import { AccountPanel } from '../components/AccountPanel';
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleDateString(APP_LOCALE, { month: 'long' }));
 const STYLES: { value: BudgetStyle; label: string }[] = [
@@ -61,6 +62,7 @@ export default function Settings() {
       </div>
       <ProfilePanel key={JSON.stringify([profile.appName, profile.primaryUser, profile.currency, profile.fyStartMonth, profile.budgetStyle])} profile={profile} />
       <Appearance />
+      <AccountPanel />
       <Security />
       <Panel title="Moving from another app?">
         <p className="sub">Bring your entries over from the CashBook app (Excel or CSV export), or from a bank statement.</p>

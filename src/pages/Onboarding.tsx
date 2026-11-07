@@ -9,6 +9,9 @@ import { CurrencySelect, guessCurrency } from '../components/CurrencySelect';
 import { formatMoney, toMinor } from '../lib/money';
 import iconUrl from '../assets/icon.svg';
 import { RestoreOnWelcome } from '../components/BackupCenter';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { AuthFlow } from '../components/AuthFlow';
+import { accountsEnabled, getAccount } from '../lib/account';
 
 const STYLES: { id: BudgetStyle; name: string; body: string }[] = [
   { id: 'envelope', name: 'Envelopes', body: 'Give each category a monthly amount. Unused money can roll over.' },
@@ -25,6 +28,9 @@ const SHARE: Record<string, number> = { housing: 0.28, groceries: 0.1, utilities
 export default function Onboarding() {
   const guessCur = guessCurrency();
   const [step, setStep] = useState(-1);
+  const [auth, setAuth] = useState<null | 'signin' | 'signup'>(null);
+  const [more, setMore] = useState(false);
+  const accounts = useLiveQuery(() => accountsEnabled(), []);
   const [name, setName] = useState('');
   const [members, setMembers] = useState<{ name: string; role: Role }[]>([]);
   const [currency, setCurrency] = useState(guessCur);
@@ -75,6 +81,25 @@ export default function Onboarding() {
 
   const sample = (v: string) => formatMoney(toMinor(v || 0), currency);
 
+  if (auth) {
+    return (
+      <div className="min-h-screen bg-bg px-5 py-8">
+        <div className="max-w-md mx-auto">
+          <div className="flex items-center gap-2.5 mb-8"><img src={iconUrl} alt="" className="h-9 w-9 rounded-xl" /><span className="text-xl font-extrabold tracking-tight">Tandem</span></div>
+          <AuthFlow start={auth} onBack={() => setAuth(null)} onDone={async (hasHousehold) => {
+            setAuth(null);
+            if (!hasHousehold) {
+              // New account: carry the name over and go straight into household setup.
+              const a = await getAccount();
+              if (a?.name) setName(a.name);
+              setStep(0);
+            }
+          }} />
+        </div>
+      </div>
+    );
+  }
+
   if (step === -1) {
     return (
       <div className="min-h-screen bg-bg grid lg:grid-cols-[1.1fr_1fr]">
@@ -87,15 +112,31 @@ export default function Onboarding() {
           </div>
         </div>
         <div className="p-8 md:p-14 flex flex-col justify-center gap-4 max-w-lg w-full mx-auto">
-          <h2 className="text-2xl font-extrabold tracking-tight">Get started</h2>
-          <p className="sub -mt-2">Setup takes about two minutes. You can change everything later.</p>
-          <button className="btn-primary h-14 text-base" onClick={() => setStep(0)}>Set up my household</button>
-          <button className="btn-soft h-14 text-base" onClick={demo} disabled={busy}><Sparkles size={18} /> {busy ? 'Building a demo family…' : 'Explore with demo data'}</button>
-          <RestoreOnWelcome />
-          <label className="mt-2 flex items-center gap-3 text-sm text-muted">Currency
-            <CurrencySelect className="field h-10 flex-1 min-w-0" value={currency} onChange={setCurrency} />
-          </label>
-          <p className="text-xs text-muted">Works offline. No accounts, no ads, no trackers.</p>
+          {accounts ? (
+            <>
+              <h2 className="text-2xl font-extrabold tracking-tight">Welcome</h2>
+              <p className="sub -mt-2">Sign in to use your household on any phone or computer. Unlock with fingerprint or Face ID after that.</p>
+              <button className="btn-primary h-14 text-base" onClick={() => setAuth('signup')}>Create an account</button>
+              <button className="btn-soft h-14 text-base" onClick={() => setAuth('signin')}>Sign in</button>
+              <button className="text-sm font-semibold text-primary text-left mt-1" aria-expanded={more} onClick={() => setMore((v) => !v)}>{more ? 'Hide other options' : 'Other ways to start'}</button>
+            </>
+          ) : (
+            <>
+              <h2 className="text-2xl font-extrabold tracking-tight">Get started</h2>
+              <p className="sub -mt-2">Setup takes about two minutes. You can change everything later.</p>
+            </>
+          )}
+          {(!accounts || more) && (
+            <div className="space-y-3">
+              <button className={`${accounts ? 'btn-soft' : 'btn-primary'} w-full h-14 text-base`} onClick={() => setStep(0)}>{accounts ? 'Use without an account' : 'Set up my household'}</button>
+              <button className="btn-soft w-full h-14 text-base" onClick={demo} disabled={busy}><Sparkles size={18} /> {busy ? 'Building a demo family…' : 'Explore with demo data'}</button>
+              <RestoreOnWelcome />
+              <label className="mt-2 flex items-center gap-3 text-sm text-muted">Currency
+                <CurrencySelect className="field h-10 flex-1 min-w-0" value={currency} onChange={setCurrency} />
+              </label>
+            </div>
+          )}
+          <p className="text-xs text-muted">Works offline. {accounts ? 'Your data is encrypted on your phone before it’s synced.' : 'No ads, no trackers.'}</p>
         </div>
       </div>
     );

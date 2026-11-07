@@ -11,7 +11,7 @@ export interface Snapshot {
  * device's own backup bookkeeping. They are never written into a backup, and restoring a
  * backup keeps this device's values.
  */
-export const LOCAL_ONLY_SETTINGS = ['gdrive', 'backupFolder', 'backupState'];
+export const LOCAL_ONLY_SETTINGS = ['gdrive', 'backupFolder', 'backupState', 'account', 'passkey', 'lockPrefs'];
 
 export async function snapshot(): Promise<Snapshot> {
   const tables: Record<string, unknown[]> = {};

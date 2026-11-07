@@ -14,6 +14,9 @@ import { isoDate } from '../lib/dates';
 import { APP_LOCALE } from '../lib/locale';
 import { methodInfo } from '../lib/payment';
 import { readXlsx } from '../lib/xlsx';
+
+/** pdf.js is large, so the PDF reader is only fetched when someone picks a PDF. */
+const readPdf = (f: File) => import('../lib/pdfText').then((m) => m.readCashbookPdf(f));
 import { useUI } from '../store/ui';
 import { Panel, useFmt } from './ui';
 
@@ -37,21 +40,23 @@ export function CashbookImport({ data }: { data: Data }) {
   const [newType, setNewType] = useState<'cash' | 'bank'>('cash');
   const [showCols, setShowCols] = useState(false);
   const [error, setError] = useState('');
+  const [fromPdf, setFromPdf] = useState(false);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<{ count: number; account: string } | null>(null);
 
   async function onFile(f: File | undefined) {
-    setError(''); setDone(null); setRows(null);
+    setError(''); setDone(null); setRows(null); setFromPdf(false);
     if (!f) return;
     setFileName(f.name);
     const name = f.name.toLowerCase();
+    const isPdf = name.endsWith('.pdf') || f.type === 'application/pdf';
     try {
-      if (name.endsWith('.pdf')) throw new Error('PDF reports can’t be read reliably. In CashBook, download the report as Excel instead.');
-      const grid = name.endsWith('.csv') || name.endsWith('.txt') ? parseCSV(await f.text()) : await readXlsx(f);
+      if (isPdf) setBusy(true);
+      const grid = isPdf ? await readPdf(f) : name.endsWith('.csv') || name.endsWith('.txt') ? parseCSV(await f.text()) : await readXlsx(f);
       const t = detectTable(grid);
       if (!t) throw new Error('Couldn’t find the entries table in this file. It should have a Date column and Cash In / Cash Out (or Amount) columns.');
-      setRows(grid); setHeaderRow(t.headerRow); setCols(t.cols);
-      setNewName(t.bookName || f.name.replace(/\.(xlsx|csv|txt)$/i, '').replace(/[_-]+/g, ' ').trim() || 'CashBook');
+      setRows(grid); setHeaderRow(t.headerRow); setCols(t.cols); setFromPdf(isPdf);
+      setNewName(t.bookName || f.name.replace(/\.(xlsx|csv|txt|pdf)$/i, '').replace(/[_-]+/g, ' ').trim() || 'CashBook');
       // Guess date order: any first part over 12 means day-first; any second part over 12 means month-first.
       const sample = grid.slice(t.headerRow + 1, t.headerRow + 40).map((r) => r[t.cols.date!] ?? '');
       const parts = sample.map((s) => /^(\d{1,2})[/.-](\d{1,2})[/.-]\d{2,4}/.exec(s)).filter(Boolean) as RegExpExecArray[];
@@ -59,6 +64,8 @@ export function CashbookImport({ data }: { data: Data }) {
       else if (parts.some((m) => Number(m[1]) > 12)) setDayFirst(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'This file couldn’t be read.');
+    } finally {
+      if (isPdf) setBusy(false);
     }
   }
 
@@ -149,14 +156,15 @@ export function CashbookImport({ data }: { data: Data }) {
         <div className="space-y-3">
           <ol className="text-sm space-y-1.5 list-decimal pl-5">
             <li>In the CashBook app, open the book you want to move.</li>
-            <li>Tap <b>Reports</b> (or <b>Download</b>), choose <b>All entries</b> and the full date range, then pick <b>Excel</b>.</li>
+            <li>Tap <b>Reports</b> (or <b>Download</b>), choose <b>All entries</b> and the full date range, then pick <b>Excel</b> (PDF works too).</li>
             <li>Save or share the file to this phone, then choose it below. Repeat for each book.</li>
           </ol>
           <label className="block">
-            <span className="label">CashBook file (.xlsx or .csv)</span>
-            <input type="file" accept=".xlsx,.csv,.txt,.xls,.pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
-              className="field pt-2" onChange={(e) => onFile(e.target.files?.[0])} />
+            <span className="label">CashBook file (Excel, CSV or PDF)</span>
+            <input type="file" accept=".xlsx,.csv,.txt,.xls,.pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,application/pdf"
+              className="field pt-2" disabled={busy} onChange={(e) => onFile(e.target.files?.[0])} />
           </label>
+          {busy && <p className="text-sm text-muted" role="status">Reading the PDF…</p>}
           <p className="text-xs text-muted">The file is read on this device and never uploaded. Each book becomes its own account, with its balance carried over.</p>
         </div>
       )}
@@ -185,6 +193,7 @@ export function CashbookImport({ data }: { data: Data }) {
             <div className="rounded-xl bg-sunk/70 p-3"><p className="text-xs text-muted">Balance after import</p><p className="font-extrabold num text-lg money">{fmt(finalHere)}</p>
               {lastBalance !== undefined && <p className={`text-[11px] font-semibold ${lastBalance === finalHere ? 'text-good' : 'text-warn'}`}>{lastBalance === finalHere ? '✓ Matches CashBook' : `CashBook shows ${fmt(lastBalance)}`}</p>}</div>
           </div>
+          {fromPdf && <p className="text-xs font-semibold text-warn flex gap-1.5"><TriangleAlert size={14} className="shrink-0 mt-px" />Read from a PDF — check a few rows before importing.</p>}
           {parsed.skipped > 0 && <p className="text-xs text-muted">{parsed.skipped} row{parsed.skipped > 1 ? 's' : ''} without a date or amount (totals, blank lines) will be skipped.</p>}
 
           <div className="grid sm:grid-cols-2 gap-3">

@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { CloudUpload, FolderOpen, HardDrive, History, RefreshCw, ShieldCheck, TriangleAlert, Upload } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { describeSnapshot, folderSupported, chooseFolder, findNewestInFolder, folderPermission, forgetFolder, getFolder, readBackupFile } from '../lib/phoneBackup';
-import { backupNow, checkForNewer, restoreFromDrive, restoreSnapshot, useBackup } from '../lib/autoBackup';
+import { backupNow, checkForNewer, restoreFromAccount, restoreFromDrive, restoreSnapshot, useBackup } from '../lib/autoBackup';
 import { connectDrive, disconnectDrive, driveConfig, listDriveBackups, switchDriveAccount, type DriveFile } from '../lib/gdrive';
 import { decryptJSON } from '../lib/crypto';
 import { asSnapshot, snapshot, type Snapshot } from '../db/backup';
@@ -243,11 +243,14 @@ export function NewerDataBanner() {
   if (!newer) return null;
   return (
     <div className="mb-4 md:mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl bg-indigo/10 px-4 py-3 text-sm" role="status">
-      <p className="flex-1 min-w-[14rem]"><b>Newer data from your other device</b> ({new Date(newer.at).toLocaleString(APP_LOCALE, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}). Update this phone to match?</p>
+      <p className="flex-1 min-w-[14rem]"><b>Newer data from your other device</b>{newer.source === 'account' ? ' in your account' : ''} ({new Date(newer.at).toLocaleString(APP_LOCALE, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}). Update this phone to match?</p>
       <button className="btn-primary h-9" disabled={busy} onClick={async () => {
-        if (!(await askConfirm('Replace the data on this phone with the newer copy from Google Drive?', 'Update', false))) return;
+        if (!(await askConfirm(newer.source === 'account' ? 'Replace the data on this phone with the newer copy in your account? Changes made on this phone since the last sync will be replaced.' : 'Replace the data on this phone with the newer copy from Google Drive?', 'Update', false))) return;
         setBusy(true);
-        try { await restoreFromDrive(newer.id); toast('Updated from Google Drive'); } catch (e) { toast((e as Error).message); } finally { setBusy(false); }
+        try {
+          if (newer.source === 'account') { await restoreFromAccount(); toast('Updated from your account'); }
+          else { await restoreFromDrive(newer.id); toast('Updated from Google Drive'); }
+        } catch (e) { toast((e as Error).message); } finally { setBusy(false); }
       }}>{busy ? 'Updating…' : 'Update'}</button>
       <button className="btn-ghost h-9" onClick={() => useBackup.setState({ newer: undefined })}>Not now</button>
     </div>

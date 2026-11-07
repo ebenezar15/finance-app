@@ -41,7 +41,7 @@ export default defineConfig(({ mode }) => {
         ],
         shortcuts: [{ name: 'Add expense', short_name: 'Add', url: './?add=1', icons: [{ src: 'icon-192.png', sizes: '192x192' }] }],
       },
-      workbox: { clientsClaim: true, skipWaiting: true, cleanupOutdatedCaches: true, globPatterns: ['**/*.{js,css,html,svg,png,woff,woff2}'], navigateFallback: 'index.html', navigateFallbackDenylist: [/^\/api\//] },
+      workbox: { clientsClaim: true, skipWaiting: true, cleanupOutdatedCaches: true, globPatterns: ['**/*.{js,mjs,css,html,svg,png,woff,woff2}'], maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, navigateFallback: 'index.html', navigateFallbackDenylist: [/^\/api\//] },
     }),
   ],
   build: embed

@@ -33,6 +33,9 @@ Tandem is an installable web app: one codebase that runs full screen from the ho
 
 ## Memory, sign-in and sync
 
+- **Tandem account (email + password):** create an account on the welcome screen or in Settings → Account & unlock. Your household syncs to every phone and computer you sign in on, end-to-end encrypted. Keep the recovery key you're shown at sign-up: there's no email password reset. Needs the one-time setup in `docs/ACCOUNTS_SETUP.md`.
+- **Fingerprint, Face ID or passcode:** turn it on in Settings → Account & unlock. Tandem then asks every time it opens, and when you come back after the time you choose. You can always fall back to your password.
+
 - **On the device:** everything is saved in the browser's database (IndexedDB) and survives restarts. Data is never reset unless you choose **Erase everything**.
 - **Shared Claude link:** your Claude account is the sign-in. Your household is saved privately under your account, so it follows you to any phone or computer where you open the link. Nobody else can read it, including the person who shared the link.
 - **Ask about your money outside Claude:** paste your own Claude API key (console.anthropic.com) in Insights. It's stored only on the device; questions go straight from the phone to the Claude API, and only aggregated totals are sent.

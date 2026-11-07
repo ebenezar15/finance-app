@@ -9,10 +9,12 @@ import { LOCAL_ONLY_SETTINGS, deviceId, restore, snapshot, type Snapshot } from 
 import { db } from '../db/db';
 import { DriveError, downloadDriveBackup, getLink, listDriveBackups, uploadDriveBackup, type DriveFile } from './gdrive';
 import { folderPermission, getFolder, writeToFolder } from './phoneBackup';
+import { getAccount, pullVault, pushVault, vaultMeta } from './account';
 
 type DriveStatus = 'off' | 'saving' | 'ok' | 'error' | 'signed_out' | 'offline';
 type PhoneStatus = 'off' | 'saving' | 'ok' | 'needs_permission' | 'error';
-export interface Newer { id: string; at: number; entries: number }
+/** Newer data saved by another device: in Google Drive, or in the person's Tandem account. */
+export interface Newer { id: string; at: number; entries: number; source?: 'drive' | 'account' }
 
 interface State {
   drive: { status: DriveStatus; email?: string; at?: number; message?: string };
@@ -21,7 +23,7 @@ interface State {
 }
 export const useBackup = create<State>(() => ({ drive: { status: 'off' }, phone: { status: 'off' } }));
 
-interface Book { lastChange: number; driveAt?: number; phoneAt?: number; hash?: string; pulledAt?: number }
+interface Book { lastChange: number; driveAt?: number; phoneAt?: number; accountAt?: number; accountHash?: string; hash?: string; pulledAt?: number }
 const getBook = async (): Promise<Book> => ((await db.settings.get('backupState'))?.value as Book | undefined) ?? { lastChange: 0 };
 const putBook = async (patch: Partial<Book>) => db.settings.put({ key: 'backupState', value: { ...(await getBook()), ...patch } });
 
@@ -53,6 +55,21 @@ export async function backupNow(force = false): Promise<void> {
     const book = await getBook();
     const unchanged = h === book.hash;
     const now = Date.now();
+
+    // Tandem account (end-to-end encrypted). Sent whenever the data differs from what the account has.
+    const acct = await getAccount();
+    if (acct && (force || h !== book.accountHash)) {
+      try {
+        let r = await pushVault(json, { updatedAt: book.lastChange || now, device: deviceId() });
+        if (r === 'conflict') {
+          // Another device saved first. If its copy is newer than our last change, offer it; else ours wins.
+          const meta = await vaultMeta();
+          if ((meta.updatedAt ?? 0) > (book.lastChange || 0)) useBackup.setState({ newer: { id: 'account', at: meta.updatedAt!, entries: 0, source: 'account' } });
+          else r = await pushVault(json, { updatedAt: book.lastChange || now, device: deviceId() }, true);
+        }
+        if (r === 'ok') await putBook({ accountAt: now, accountHash: h });
+      } catch { /* offline or signed out: the account badge shows it; retried on the next change */ }
+    }
 
     const link = await getLink();
     if (link && (force || !unchanged || !book.driveAt || now - book.driveAt > 12 * 3600_000)) {
@@ -99,8 +116,36 @@ function markChanged() {
   schedule();
 }
 
+/**
+ * Account sync on open: if another device saved newer data and this phone has no changes of its
+ * own since its last sync, update quietly; if both changed, ask (via the banner).
+ */
+export async function syncFromAccount(): Promise<'updated' | 'ask' | 'none'> {
+  const acct = await getAccount();
+  if (!acct) return 'none';
+  const meta = await vaultMeta().catch(() => null);
+  if (!meta?.exists || (meta.version ?? 0) <= (acct.version ?? 0)) return 'none';
+  const book = await getBook();
+  const localChanged = (book.lastChange || 0) > (acct.syncedAt || 0);
+  if (localChanged) {
+    useBackup.setState({ newer: { id: 'account', at: meta.updatedAt ?? Date.now(), entries: 0, source: 'account' } });
+    return 'ask';
+  }
+  const pulled = await pullVault();
+  if (pulled) await restoreSnapshot(pulled.snapshot as Snapshot);
+  return 'updated';
+}
+
+/** Replaces this device's data with the copy in the person's account. */
+export async function restoreFromAccount() {
+  const pulled = await pullVault();
+  if (!pulled) throw new Error('Your account doesn’t have any saved data yet.');
+  await restoreSnapshot(pulled.snapshot as Snapshot);
+}
+
 /** Looks for a backup in Drive written by another device after this device's last change. */
 export async function checkForNewer(): Promise<Newer | undefined> {
+  if (useBackup.getState().newer?.source === 'account') return useBackup.getState().newer;
   const link = await getLink();
   if (!link) return undefined;
   const files = await listDriveBackups().catch(() => [] as DriveFile[]);
@@ -110,7 +155,7 @@ export async function checkForNewer(): Promise<Newer | undefined> {
   const book = await getBook();
   const fromElsewhere = top.appProperties?.device && top.appProperties.device !== deviceId();
   if (fromElsewhere && at > (book.lastChange || 0) && at > (book.pulledAt || 0)) {
-    const newer = { id: top.id, at, entries: Number(top.appProperties?.transactions ?? 0) };
+    const newer: Newer = { id: top.id, at, entries: Number(top.appProperties?.transactions ?? 0), source: 'drive' };
     useBackup.setState({ newer });
     return newer;
   }
@@ -135,7 +180,8 @@ export async function restoreSnapshot(snap: Snapshot) {
   try {
     await restore(snap);
     const at = Date.parse(snap.exportedAt) || Date.now();
-    await putBook({ lastChange: at, pulledAt: Date.now(), hash: hash(JSON.stringify((await snapshot()).tables)) });
+    const h = hash(JSON.stringify((await snapshot()).tables));
+    await putBook({ lastChange: at, pulledAt: Date.now(), hash: h, accountHash: h });
     useBackup.setState({ newer: undefined });
   } finally { pause = false; }
 }
@@ -160,6 +206,10 @@ export async function startAutoBackup() {
     drive: link ? { status: 'ok', email: link.email, at: book.driveAt } : { status: 'off' },
     phone: folder ? { status: (await folderPermission(folder.handle)) === 'granted' ? 'ok' : 'needs_permission', name: folder.name, at: book.phoneAt } : { status: 'off' },
   });
+  if (await getAccount()) {
+    const r = await syncFromAccount().catch(() => 'none');
+    if (r === 'updated') (await import('../store/ui')).useUI.getState().toast('Updated with the latest data from your account');
+  }
   if (link) await checkForNewer().catch(() => {});
   // Catch up if the last backup is older than 12 hours (or never happened).
   backupNow().catch(() => {});
