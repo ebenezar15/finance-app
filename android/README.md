@@ -23,6 +23,8 @@ The signing key is never kept in this repository. The workflow uses the reposito
 
 ## Limits
 
+- **Google Play Protect blocks it on many phones.** Apps installed from outside the Play Store that declare `RECEIVE_SMS` or a notification listener are blocked automatically in India and several other countries. Nothing in the app can avoid that; Tandem recommends MacroDroid (from the Play Store) instead. Publishing this app on the Play Store, with Google's approval for SMS access, is the only lasting fix.
+
 - Android 13 and later treat SMS and notification access as "restricted settings" for apps installed outside the Play Store. The person allows them once in App info → ⋮ → Allow restricted settings.
 - Some phones stop background apps aggressively. Turning off battery optimisation for the companion avoids missed messages.
 - It only forwards. Tandem collects the messages and updates its numbers when it's next open.

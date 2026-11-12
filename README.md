@@ -33,7 +33,7 @@ Tandem is an installable web app: one codebase that runs full screen from the ho
 
 ## Automatic payment capture
 
-Tandem can't connect to Google Pay, PhonePe or a bank directly (they don't allow it), but it reads the message each payment produces. On Android, the small Tandem Companion app (`android/`) detects bank SMS about money credited or debited and payment-app notifications, and sends them to your Tandem; MacroDroid or iPhone Shortcuts can do the same; you can also share a message into Tandem, read a payment screenshot (on the device, never uploaded), or paste one. Set it up in Settings → Automatic payment capture. Details and privacy: `docs/AUTO_CAPTURE.md`.
+Tandem can't connect to Google Pay, PhonePe or a bank directly (they don't allow it), but it reads the message each payment produces. An automation app on the phone (MacroDroid on Android, Shortcuts on iPhone) detects bank SMS about money credited or debited and payment-app notifications, and sends them to your Tandem; Settings gives you the configuration to paste. (A companion app in `android/` does the same, but Google Play Protect blocks it on many phones.) you can also share a message into Tandem, read a payment screenshot (on the device, never uploaded), or paste one. Set it up in Settings → Automatic payment capture. Details and privacy: `docs/AUTO_CAPTURE.md`.
 
 ## Memory, sign-in and sync
 

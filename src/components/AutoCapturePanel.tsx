@@ -47,7 +47,7 @@ export function AutoCapturePanel() {
       </p>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        <Way icon={<Zap size={18} />} title="Automatic" body="On Android, the small Tandem Companion app detects bank SMS about money credited or debited, and payment app notifications, and sends them to Tandem. Set up once, below." />
+        <Way icon={<Zap size={18} />} title="Automatic" body="An automation app on your phone detects bank SMS about money credited or debited, and payment app notifications, and sends them to Tandem. Set up once, below." />
         <Way icon={<Share2 size={18} />} title="Share to Tandem" body="On Android, with Tandem installed: open the SMS or message, tap Share and choose Tandem." />
         <Way icon={<Smartphone size={18} />} title="Screenshot or paste" body={<>Read a payment screenshot, or paste a message, in <Link to="/inbox" className="font-semibold text-primary underline">Inbox &amp; import</Link>.</>} />
       </div>
@@ -57,7 +57,7 @@ export function AutoCapturePanel() {
           <p className="text-sm">{enabled ? 'Automatic forwarding needs a Tandem account, so the messages have somewhere private to wait until you open the app. Sign in under Account & unlock above, then come back here.' : 'Automatic forwarding needs Tandem accounts, which aren’t switched on for this app yet. Sharing and pasting work without one.'}</p>
         ) : !link ? (
           <div className="flex flex-wrap items-center gap-3">
-            <p className="text-sm flex-1 min-w-[14rem]">Turn this on to get your private capture link. You then connect it to the Tandem Companion app on Android, or to Shortcuts on iPhone.</p>
+            <p className="text-sm flex-1 min-w-[14rem]">Turn this on to get your private capture link. You then give it to MacroDroid on Android, or to Shortcuts on iPhone.</p>
             <button className="btn-primary" disabled={!!busy} onClick={() => run('on', async () => { await turnOnCapture(); toast('Automatic capture is on. Follow the steps for your phone.'); })}>{busy === 'on' ? 'Turning on…' : 'Turn on'}</button>
           </div>
         ) : (
@@ -88,27 +88,39 @@ export function AutoCapturePanel() {
               })}>Turn off</button>
             </div>
 
-            <Steps title="Android: the Tandem Companion app (easiest)" open={open === 'companion'} onToggle={() => setOpen(open === 'companion' ? null : 'companion')}>
+            <Steps title="Android: MacroDroid, from the Play Store (recommended)" open={open === 'android'} onToggle={() => setOpen(open === 'android' ? null : 'android')}>
+              <li>Install <b>MacroDroid</b> (free) from the Play Store and open it. Because it comes from the Play Store, Google Play Protect doesn’t block it.</li>
+              <li>
+                <b>First macro, for bank SMS.</b> Tap <b>Add Macro</b>. Under <b>Triggers</b> tap <b>+</b>, search for <b>SMS Received</b>, and choose any sender and any content.
+              </li>
+              <li>
+                Under <b>Actions</b> tap <b>+</b> and search for <b>HTTP Request</b>. Open its <b>⋮</b> menu, choose <b>Import from cURL string</b>, and paste this:
+                <CopyBlock label="Copy for the SMS macro" text={curl(url, '{sms_message}')} />
+                Tap OK, give the macro a name such as “Tandem SMS”, and save it.
+              </li>
+              <li>
+                <b>Second macro, for payment apps.</b> Add another macro. Trigger: <b>Notification Received</b>, and pick Google Pay, PhonePe and Paytm. Action: <b>HTTP Request</b> again, importing this:
+                <CopyBlock label="Copy for the payment apps macro" text={curl(url, '{not_title}. {notification}')} />
+              </li>
+              <li>Allow the permissions MacroDroid asks for (SMS and notification access), and turn off battery optimisation for it so Android keeps it running.</li>
+              <li>Tap <b>Send a test</b> above to check your link, then make a small payment and open Tandem.</li>
+              <li className="list-none -ml-5 text-xs text-muted">
+                If the import option isn’t there, fill the action in by hand: method <b>POST</b>, your capture link as the URL, content body type <b>text/plain</b>, and the body shown after <code>-d</code> above. If MacroDroid doesn’t offer <b>SMS Received</b>, add your Messages app to the second macro instead. One-time passwords are dropped by Tandem’s server and never stored.
+              </li>
+            </Steps>
+            <Steps title="Android: the Tandem Companion app (often blocked by Play Protect)" open={open === 'companion'} onToggle={() => setOpen(open === 'companion' ? null : 'companion')}>
+              <li className="list-none -ml-5 rounded-xl bg-warn/10 p-3 text-[13px]">
+                <b>Use MacroDroid above if you can.</b> Google Play Protect blocks apps from outside the Play Store that read SMS or notifications, in India and several other countries, and may stop this app even after it’s installed. Nothing in the app can change that. It’s kept here for phones where Play Protect allows it.
+              </li>
               <li>
                 Download the companion app on your Android phone and open the file to install it.
-                <span className="block mt-2"><a className="btn-primary h-10 inline-flex" href={COMPANION_APK} download><Download size={16} /> Download Tandem Companion</a></span>
-                <span className="block text-xs text-muted mt-2">It isn’t on the Play Store, so Android asks you to allow installing from your browser, and may show a “not verified” notice.</span>
+                <span className="block mt-2"><a className="btn-soft h-10 inline-flex" href={COMPANION_APK} download><Download size={16} /> Download Tandem Companion</a></span>
               </li>
               <li>
-                Back here, on the same phone, tap <b>Connect the companion app</b>. It opens the app with your link filled in.
+                Back here, on the same phone, tap <b>Connect the companion app</b>.
                 <span className="block mt-2"><a className="btn-soft h-10 inline-flex" href={`tandem-companion://link?u=${encodeURIComponent(url)}`}><Smartphone size={16} /> Connect the companion app</a></span>
-                <span className="block text-xs text-muted mt-2">If nothing happens, copy the link above and paste it into the companion app.</span>
               </li>
-              <li>In the companion app, tap <b>Allow reading SMS</b> and <b>Allow notification access</b>. If Android says the setting is restricted, open the app’s <b>App info</b>, tap <b>⋮</b> at the top right, choose <b>Allow restricted settings</b>, then try again.</li>
-              <li>Tap <b>Send a test to Tandem</b> in the companion app. “Last message received” above updates here.</li>
-              <li>That’s it. Bank messages about money credited or debited, and Google Pay, PhonePe and Paytm payment notifications, now reach Tandem by themselves. Everything else, including one-time passwords, stays on your phone.</li>
-            </Steps>
-            <Steps title="Android alternative: MacroDroid or Tasker" open={open === 'android'} onToggle={() => setOpen(open === 'android' ? null : 'android')}>
-              <li>Install <b>MacroDroid</b> (free) from the Play Store and open it. Tasker and similar apps work the same way.</li>
-              <li>Tap <b>Add Macro</b>. For the <b>Trigger</b>, choose <b>Device Events → Notification → Notification Received</b>, and pick the apps to watch: Google Pay, PhonePe, Paytm, your bank’s app and your SMS app.</li>
-              <li>For the <b>Action</b>, choose <b>Web Interactions → HTTP Request</b>. Set the method to <b>POST</b>, paste your capture link as the URL, set the content type to <b>text/plain</b>, and for the body use the “…” button to insert <b>Notification title</b> and <b>Notification text</b>.</li>
-              <li>Save the macro. When MacroDroid asks, allow <b>notification access</b>, and turn off battery optimisation for it so it keeps running.</li>
-              <li>Come back here and tap <b>Send a test</b>, then make a small payment. It appears in Tandem the next time you open the app.</li>
+              <li>In the companion app, allow reading SMS and notification access, then tap <b>Send a test to Tandem</b>.</li>
             </Steps>
             <Steps title="Set up on iPhone (bank SMS)" open={open === 'iphone'} onToggle={() => setOpen(open === 'iphone' ? null : 'iphone')}>
               <li>Open the <b>Shortcuts</b> app, go to <b>Automation</b> and tap <b>+</b>.</li>
@@ -126,6 +138,22 @@ export function AutoCapturePanel() {
         <span>Forwarded messages are encrypted the moment they arrive, with a key only your signed-in devices hold, and deleted once Tandem has collected them (or after 30 days). Messages that aren’t payments, such as one-time passwords, offers and requests, are ignored. A payment Tandem isn’t sure about goes to your review inbox instead of being counted.</span>
       </p>
     </Panel>
+  );
+}
+
+/** The whole HTTP Request action as one line MacroDroid can import. The {…} parts are MacroDroid's own placeholders. */
+const curl = (url: string, body: string) => `curl -X POST '${url}' -H 'Content-Type: text/plain' -d '${body}'`;
+
+function CopyBlock({ label, text }: { label: string; text: string }) {
+  const [done, setDone] = useState(false);
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(text); setDone(true); window.setTimeout(() => setDone(false), 1800); } catch { toast('Press and hold the text to copy it.'); }
+  };
+  return (
+    <span className="block my-2">
+      <code className="block rounded-xl bg-sunk px-3 py-2 text-[11px] leading-relaxed break-all select-all">{text}</code>
+      <button type="button" className="btn-primary h-10 mt-2" onClick={copy}>{done ? <Check size={16} /> : <Copy size={16} />} {done ? 'Copied' : label}</button>
+    </span>
   );
 }
 

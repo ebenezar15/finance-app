@@ -244,6 +244,10 @@ export async function ingestCapture({ link, text, at }, { redis }) {
   const body = String(text ?? '').replace(/\u0000/g, '').trim().slice(0, CAPTURE_MAX_TEXT);
   // Nothing with a number in it can't be a payment; don't store chatter.
   if (!body || !/\d/.test(body)) return ok({ ok: true, stored: false });
+  // One-time passwords are never kept, even encrypted: an automation app may forward every SMS.
+  if (/\b(otp|one[ -]?time (?:password|passcode|pin)|verification code|security code|login code)\b/i.test(body)) return ok({ ok: true, stored: false });
+  // A placeholder the automation app failed to fill in ("{sms_message}") isn't a message.
+  if (/^\W*\{[a-z_]+\}(?:\W+\{[a-z_]+\})*\W*$/i.test(body)) return ok({ ok: true, stored: false });
   const cfg = await redis.get(`capcfg:${owner.email}`);
   if (!cfg) return fail(404, 'unknown_link', 'This capture link isn’t active.');
   const q = (await redis.get(`capq:${owner.email}`)) ?? [];

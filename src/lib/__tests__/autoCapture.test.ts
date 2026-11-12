@@ -83,6 +83,13 @@ describe('automatic payment capture', () => {
     expect([...s.store.keys()].filter((k) => k.startsWith('cap'))).toEqual([]);
   });
 
+  it('never stores one-time passwords or unfilled placeholders, even when everything is forwarded', async () => {
+    for (const t of ['483920 is your OTP for txn of Rs 250.00 at Fresh Mart', 'Your one time password is 221133', 'Use verification code 998877', '{sms_message}', '{not_title}. {notification}'])
+      expect((await s.forward(link, t)).body.stored).toBe(false);
+    expect(await captureStatus()).toMatchObject({ pending: 0 });
+    expect((await s.forward(link, 'Rs.250 debited from A/c XX1234 to RAMESH')).body.stored).toBe(true);
+  });
+
   it('caps message length and the rate of messages', async () => {
     await s.forward(link, `Paid ₹5 to X ${'y'.repeat(5000)}`);
     expect((await capturePull()).items[0].text.length).toBeLessThanOrEqual(1500);
