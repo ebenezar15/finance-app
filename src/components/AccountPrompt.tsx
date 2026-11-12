@@ -7,6 +7,7 @@ import { accountsEnabled, getAccount } from '../lib/account';
 import { useUI } from '../store/ui';
 import { AuthFlow } from './AuthFlow';
 import iconUrl from '../assets/icon.svg';
+import { WaveBackdrop } from './WaveBackdrop';
 
 /** Set once the person has signed in, created an account or chosen "Not now" on this phone. */
 export const PROMPT_KEY = 'accountPromptDone';
@@ -44,8 +45,9 @@ export function AccountPrompt() {
   };
 
   return (
-    <div className="min-h-screen bg-bg px-5 py-8 grid place-items-center">
-      <div className="w-full max-w-md page-enter">
+    <div className="relative isolate min-h-screen bg-bg px-5 py-8 grid place-items-center">
+      {!auth && <WaveBackdrop />}
+      <div className="relative w-full max-w-md page-enter">
         {auth ? (
           <>
             <div className="flex items-center gap-2.5 mb-8"><img src={iconUrl} alt="" className="h-9 w-9 rounded-xl" /><span className="font-display text-xl font-bold tracking-tight">Tandem</span></div>

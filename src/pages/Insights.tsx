@@ -1,12 +1,13 @@
 import {
   AlertTriangle, CalendarClock, Copy, Download, Lightbulb, PiggyBank, Store, TrendingUp, TriangleAlert,
 } from 'lucide-react';
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Area, Bar as RBar, BarChart, CartesianGrid, ComposedChart, Legend, Line, ReferenceDot, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import { Bar, CatIcon, Money, Panel, Segmented, useFmt } from '../components/ui';
+import { useReducedMotion } from '../lib/motion';
 import { db, uid } from '../db/db';
 import { useData, useProfile, type Data } from '../db/hooks';
 import { addMonths, isoDate, monthKey, startOfMonth } from '../lib/dates';
@@ -24,6 +25,14 @@ const tooltipStyle = { background: 'rgb(var(--surface))', borderRadius: 12, bord
 const axisTick = { fontSize: 11, fill: 'rgb(var(--muted))' };
 
 /** A round step for sliders so values land on tidy numbers (in minor units). */
+/** Lets a chart draw in once when it first shows, then holds it still through later re-renders. */
+function useDrawIn() {
+  const reduce = useReducedMotion();
+  const [done, setDone] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setDone(true), 1200); return () => clearTimeout(t); }, []);
+  return !reduce && !done;
+}
+
 function niceStep(max: number, parts = 50) {
   const raw = Math.max(100, max / parts);
   const p = Math.pow(10, Math.floor(Math.log10(raw)));
@@ -324,6 +333,7 @@ function WhatIfStat({ label, value, hint }: { label: string; value: ReactNode; h
 
 function TrendsPanel({ data, now, mk, avgCat }: { data: Data; now: Date; mk: string; avgCat: Map<string, number> }) {
   const fmt = useFmt();
+  const draw = useDrawIn();
   const series = monthlySeries(data.txs, now, 12).map((s) => ({ ...s, income: s.income / 100, expense: s.expense / 100 }));
   const cur = spendByCategory(data.txs, mk);
   const rows = data.categories
@@ -344,8 +354,8 @@ function TrendsPanel({ data, now, mk, avgCat }: { data: Data; now: Date; mk: str
             <YAxis tickFormatter={(v) => fmt(Math.round(Number(v) * 100), { compact: true })} axisLine={false} tickLine={false} tick={axisTick} width={64} />
             <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgb(var(--sunk))' }} formatter={(v, name) => [fmt(Math.round(Number(v) * 100)), name === 'income' ? 'Income' : 'Spending']} />
             <Legend formatter={(v) => (v === 'income' ? 'Income' : 'Spending')} wrapperStyle={{ fontSize: 12 }} />
-            <RBar dataKey="income" fill="rgb(var(--good))" radius={[4, 4, 0, 0]} />
-            <RBar dataKey="expense" fill="rgb(var(--indigo))" radius={[4, 4, 0, 0]} />
+            <RBar dataKey="income" fill="rgb(var(--good))" radius={[4, 4, 0, 0]} isAnimationActive={draw} animationDuration={700} animationEasing="ease-out" />
+            <RBar dataKey="expense" fill="rgb(var(--indigo))" radius={[4, 4, 0, 0]} isAnimationActive={draw} animationDuration={700} animationEasing="ease-out" />
           </BarChart>
         </ResponsiveContainer>
       </div>

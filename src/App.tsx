@@ -4,6 +4,7 @@ import { Layout } from './components/Layout';
 import { LockScreen, useAutoLock } from './components/Lock';
 import { QuickAdd } from './components/QuickAdd';
 import { CommandPalette } from './components/CommandPalette';
+import { ConfettiHost } from './components/Confetti';
 import { AccountPrompt, useAccountPrompt } from './components/AccountPrompt';
 import { ConfirmHost, Toasts } from './components/ui';
 import { purgeTrash } from './db/db';
@@ -106,6 +107,7 @@ export default function App() {
   if (askAccount) return <><AccountPrompt /><ConfirmHost /><Toasts /></>;
 
   return (
+    <>
     <Layout>
       <EmbedBanner />
       <NewerDataBanner />
@@ -125,10 +127,13 @@ export default function App() {
           <Route path="*" element={<Home />} />
         </Routes>
       </Suspense>
-      <QuickAdd />
-      <CommandPalette />
-      <Toasts />
-      <ConfirmHost />
     </Layout>
+    {/* Overlays live outside the page wrapper: its entrance animation would otherwise anchor fixed elements to the page. */}
+    <QuickAdd />
+    <CommandPalette />
+    <ConfettiHost />
+    <Toasts />
+    <ConfirmHost />
+    </>
   );
 }

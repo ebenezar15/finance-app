@@ -122,12 +122,26 @@ body {
 /* Fresh numbers flash softly when they change because of something the person did. */
 @keyframes tick { 0% { opacity: .35; translate: 0 .18em } 100% { opacity: 1; translate: none } }
 
+/* A celebrating emoji gives one small wiggle; the streak flame flickers. */
+@keyframes wiggle { 0%, 100% { rotate: 0deg } 20% { rotate: -12deg } 45% { rotate: 10deg } 70% { rotate: -5deg } }
+.cheer-wiggle { animation: pop .45s cubic-bezier(.2,.8,.2,1) both, wiggle .9s ease-in-out .45s 1; }
+@keyframes flicker { 0%, 100% { scale: 1; rotate: 0deg } 30% { scale: 1.08 .96; rotate: -3deg } 60% { scale: .96 1.07; rotate: 3deg } }
+.flame { animation: flicker 1.6s ease-in-out infinite; transform-origin: 50% 90%; }
+
+/* Confetti: each piece flies out along its own vector, then falls and fades. */
+@keyframes confetti {
+  0% { opacity: 1; translate: 0 0; rotate: 0deg; }
+  55% { opacity: 1; translate: var(--dx) var(--dy); }
+  100% { opacity: 0; translate: calc(var(--dx) * 1.15) calc(var(--dy) + 260px); rotate: var(--rot); }
+}
+.confetti { animation: confetti 1.7s cubic-bezier(.15,.7,.35,1) both; }
+
 @keyframes card-flip { 0% { opacity: 0; rotate: x 18deg; translate: 0 6px } 100% { opacity: 1; rotate: none; translate: none } }
 .flip-in { animation: card-flip .45s cubic-bezier(.2,.8,.2,1) both; transform-origin: 50% 0; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
-  .wave, .swell { animation: none !important; }
+  .wave, .swell, .flame { animation: none !important; }
   .btn:active, .chip:active { scale: none; }
 }
 .no-scrollbar::-webkit-scrollbar { display: none; }

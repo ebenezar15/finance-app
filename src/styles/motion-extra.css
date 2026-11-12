@@ -1,0 +1,30 @@
+/*
+ * Extra motion for the water identity. Every infinite animation here is switched off outright
+ * under reduced motion (the global near-zero duration rule would make them flicker).
+ */
+
+/* Wave backdrop: the same drift/swell technique as the tide gauge, with its own class names so it
+   never depends on the gauge's pause state. */
+@keyframes backdrop-drift { from { translate: 0 0 } to { translate: -50% 0 } }
+@keyframes backdrop-swell { 0%, 100% { translate: 0 0 } 50% { translate: 0 4px } }
+.backdrop-wave { animation: backdrop-drift var(--d, 20s) linear infinite; }
+.backdrop-swell { animation: backdrop-swell 7s ease-in-out infinite; }
+.backdrop-water { transition: height .45s cubic-bezier(.5, 0, .2, 1); }
+.backdrop-flood { transition: height .45s cubic-bezier(.5, 0, .2, 1), opacity .3s ease-out; }
+
+/* Empty states: the icon tile floats, and a ripple spreads on the water beneath it. */
+@keyframes empty-bob { 0%, 100% { translate: 0 0 } 50% { translate: 0 -4px } }
+@keyframes empty-ripple {
+  0% { scale: .55; opacity: 0 }
+  25% { opacity: .55 }
+  100% { scale: 1.5; opacity: 0 }
+}
+.empty-bob { animation: empty-bob 4s ease-in-out infinite; }
+.empty-ripple { opacity: 0; animation: empty-ripple 4s ease-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop-wave, .backdrop-swell, .empty-bob, .empty-ripple { animation: none !important; }
+  .backdrop-water, .backdrop-flood { transition: none !important; }
+  /* Keep the ripple as a still mark so the tile still sits on water. */
+  .empty-ripple { opacity: .35; }
+}

@@ -12,6 +12,7 @@ import { RestoreOnWelcome } from '../components/BackupCenter';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { AuthFlow } from '../components/AuthFlow';
 import { accountsEnabled, getAccount } from '../lib/account';
+import { WaveBackdrop } from '../components/WaveBackdrop';
 
 const STYLES: { id: BudgetStyle; name: string; body: string }[] = [
   { id: 'envelope', name: 'Envelopes', body: 'Give each category a monthly amount. Unused money can roll over.' },
@@ -104,7 +105,8 @@ export default function Onboarding() {
 
   if (step === -1) {
     return (
-      <div className="min-h-screen bg-bg grid lg:grid-cols-[1.1fr_1fr]">
+      <div className="relative isolate min-h-screen bg-bg grid lg:grid-cols-[1.1fr_1fr]">
+        <WaveBackdrop />
         <div className="relative overflow-hidden bg-primary text-onprimary p-8 md:p-14 flex flex-col justify-between min-h-[46vh]">
           <WelcomeArt />
           <div className="relative flex items-center gap-2.5"><img src={iconUrl} alt="" className="h-9 w-9 rounded-xl ring-1 ring-white/20" /><span className="text-xl font-extrabold tracking-tight">Tandem</span></div>
@@ -113,7 +115,7 @@ export default function Onboarding() {
             <p className="mt-4 text-[17px] opacity-80 max-w-md">Budgets, bills, goals and the whole family’s spending in one place. Private by default: your data stays on your phone, with automatic backups to your own Google Drive when you turn them on.</p>
           </div>
         </div>
-        <div className="p-8 md:p-14 flex flex-col justify-center gap-4 max-w-lg w-full mx-auto">
+        <div className="relative p-8 md:p-14 flex flex-col justify-center gap-4 max-w-lg w-full mx-auto">
           {accounts ? (
             <>
               <h2 className="text-2xl font-extrabold tracking-tight">Welcome</h2>

@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { AlertTriangle, CheckCircle2, Coins, Flag, LifeBuoy, PartyPopper, Pencil, Plus, Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { AlertTriangle, Check, CheckCircle2, Coins, Flag, LifeBuoy, PartyPopper, Pencil, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Avatar, Bar, Empty, Money, Panel, Ring, Segmented, Sheet, useFmt } from '../components/ui';
 import { db, getSetting, setSetting, uid } from '../db/db';
@@ -11,6 +11,8 @@ import { goalPlan, spendByCategory, spendLines } from '../lib/finance';
 import { evalAmount, toMinor } from '../lib/money';
 import { useUI } from '../store/ui';
 import { APP_LOCALE } from '../lib/locale';
+import { celebrateOnce } from '../components/Confetti';
+import { useMounted } from '../lib/motion';
 
 const tipStyle = { background: 'rgb(var(--surface))', borderRadius: 12, border: '1px solid rgb(var(--line))', fontSize: 13 };
 
@@ -49,12 +51,29 @@ function projection(goal: Goal, monthly: number, now: Date, minMonths = 0) {
 /** Rough size of one unit of each currency vs USD, for picking a round-up step. */
 const SCALE_HINT: Record<string, number> = { INR: 30, JPY: 150, KRW: 1300, IDR: 15000, VND: 24000, NGN: 700, KES: 130, PKR: 140, HUF: 360, CLP: 900, COP: 4000, ARS: 900, PHP: 56, THB: 35, RUB: 90, TWD: 32, LKR: 150, BDT: 60, NPR: 50, ISK: 135, EGP: 30, CZK: 23, TRY: 30, UAH: 40 };
 
+const isReached = (g: Goal) => g.target > 0 && g.saved >= g.target;
+
+function ReachedPill() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-good/10 text-good px-2.5 py-1 text-xs font-bold whitespace-nowrap">
+      <Check size={13} strokeWidth={3} aria-hidden /> Reached
+    </span>
+  );
+}
+
 export default function Goals() {
   const data = useData();
   const profile = useProfile();
   const [openId, setOpenId] = useState<string | null>(null);
   const [form, setFormState] = useState<{ open: boolean; goal?: Goal; n: number }>({ open: false, n: 0 });
   const setForm = (f: { open: boolean; goal?: Goal }) => setFormState((cur) => ({ ...f, n: cur.n + 1 }));
+  // Confetti the first time a goal is seen as reached on this device. One burst per visit: if
+  // several are newly reached, the others get theirs next time rather than all at once.
+  const reachedIds = (data?.goals ?? []).filter(isReached).map((g) => g.id).join(',');
+  useEffect(() => {
+    if (!reachedIds) return;
+    for (const id of reachedIds.split(',')) if (celebrateOnce('goal-' + id)) break;
+  }, [reachedIds]);
   if (!data || !profile) return null;
   const now = new Date();
   const household = data.goals.filter((g) => !g.memberId).sort((a, b) => a.priority - b.priority);
@@ -102,10 +121,10 @@ export default function Goals() {
                   <button onClick={() => setOpenId(g.id)} className="w-full text-left rounded-2xl bg-sunk/60 hover:bg-sunk p-4 flex items-center gap-4 transition-colors">
                     <Jar fill={p.progress} />
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2"><Avatar m={m} size={24} /><span className="text-sm font-semibold text-muted">{m?.name ?? 'Child'}</span></div>
+                      <div className="flex items-center gap-2"><Avatar m={m} size={24} /><span className="text-sm font-semibold text-muted truncate">{m?.name ?? 'Child'}</span>{isReached(g) && <span className="ml-auto shrink-0"><ReachedPill /></span>}</div>
                       <p className="font-bold mt-1 truncate">{g.emoji} {g.name}</p>
                       <p className="text-sm text-muted"><Money value={g.saved} className="font-bold text-ink" /> of <Money value={g.target} /></p>
-                      <p className="text-xs text-muted mt-0.5">{p.progress >= 1 ? 'Jar is full. Well done!' : <>Save <Money value={p.needed} /> a month</>}</p>
+                      <p className="text-xs text-muted mt-0.5">{p.progress >= 1 ? 'Jar is full. Well done.' : <>Save <Money value={p.needed} /> a month</>}</p>
                     </div>
                   </button>
                 </li>
@@ -128,7 +147,7 @@ export default function Goals() {
 
 function GoalCard({ goal, now, onOpen }: { goal: Goal; now: Date; onOpen: () => void }) {
   const p = goalPlan(goal, now);
-  const done = p.progress >= 1;
+  const done = isReached(goal);
   const series = useMemo(() => projection(goal, p.pace, now, 0).slice(0, Math.min(25, p.monthsLeft + 2)), [goal, p.pace, p.monthsLeft, now]);
   const tone = done || p.onTrack ? 'rgb(var(--good))' : 'rgb(var(--warn))';
   return (
@@ -154,7 +173,7 @@ function GoalCard({ goal, now, onOpen }: { goal: Goal; now: Date; onOpen: () => 
       </div>
       <div className="mt-2 flex items-center justify-between gap-2 text-sm">
         {done ? (
-          <span className="inline-flex items-center gap-1.5 font-semibold text-good animate-pop"><PartyPopper size={15} /> Goal reached</span>
+          <span className="animate-pop"><ReachedPill /></span>
         ) : p.onTrack ? (
           <span className="inline-flex items-center gap-1.5 font-semibold text-good"><CheckCircle2 size={15} /> On track</span>
         ) : (
@@ -574,7 +593,9 @@ function Switch({ checked, onChange, label }: { checked: boolean; onChange: () =
 }
 
 function Jar({ fill }: { fill: number }) {
-  const h = 70 * Math.max(0, Math.min(1, fill));
+  const mounted = useMounted();
+  // The fill is a full-height block that slides up from below the jar, so it rises from empty on first show.
+  const empty = 70 * (1 - (mounted ? Math.max(0, Math.min(1, fill)) : 0));
   const id = useMemo(() => `jar-${Math.random().toString(36).slice(2)}`, []);
   const body = 'M10 12h36a5 5 0 0 1 5 5v58a6 6 0 0 1-6 6H11a6 6 0 0 1-6-6V17a5 5 0 0 1 5-5z';
   return (
@@ -582,7 +603,9 @@ function Jar({ fill }: { fill: number }) {
       <rect x="14" y="2" width="28" height="8" rx="3" fill="rgb(var(--line))" />
       <path d={body} fill="rgb(var(--surface))" stroke="rgb(var(--line))" strokeWidth="2" />
       <clipPath id={id}><path d={body} /></clipPath>
-      <rect x="0" y={81 - h} width="56" height={h} fill="rgb(var(--good))" opacity=".85" clipPath={`url(#${id})`} style={{ transition: 'all .8s' }} />
+      <g clipPath={`url(#${id})`}>
+        <rect x="0" y="11" width="56" height="70" fill="rgb(var(--good))" opacity=".85" style={{ transform: `translateY(${empty}px)`, transition: 'transform .9s cubic-bezier(.2,.8,.2,1)' }} />
+      </g>
     </svg>
   );
 }

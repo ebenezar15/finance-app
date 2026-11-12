@@ -1,0 +1,21 @@
+/* Quick add: the allowance meter under the category picker and the confirmation on Save. */
+
+.qa-meter { position: relative; display: flex; height: 6px; border-radius: 999px; overflow: hidden; }
+.qa-meter > span { display: block; height: 100%; min-width: 0; transition: width .35s cubic-bezier(.2,.8,.2,1), background-color .2s; }
+
+/* Saved: the label gives way to a check mark that draws itself, with one soft ring from the button. */
+.qa-save-done { animation: qa-ring .45s cubic-bezier(.2,.8,.2,1) both; }
+.qa-check { display: block; margin: 0 auto; animation: qa-check-in .2s cubic-bezier(.2,.8,.2,1) both; }
+.qa-check path { stroke-dasharray: 24; stroke-dashoffset: 0; animation: qa-draw .3s cubic-bezier(.65,0,.35,1) .08s both; }
+
+@keyframes qa-draw { from { stroke-dashoffset: 24 } to { stroke-dashoffset: 0 } }
+@keyframes qa-check-in { from { opacity: 0; scale: .7 } to { opacity: 1; scale: 1 } }
+@keyframes qa-ring {
+  0% { box-shadow: 0 0 0 0 rgb(var(--primary) / .45) }
+  100% { box-shadow: 0 0 0 12px rgb(var(--primary) / 0) }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qa-save-done, .qa-check, .qa-check path { animation: none !important; }
+  .qa-meter > span { transition: none !important; }
+}

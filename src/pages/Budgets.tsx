@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { AlertTriangle, CalendarRange, Plus, Trash2, Users } from 'lucide-react';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Bar as RBar, BarChart, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Avatar, Bar, CatIcon, Empty, Money, Panel, Segmented, Sheet, Stat, useFmt } from '../components/ui';
@@ -12,6 +12,8 @@ import { budgetStatus, fiftyThirtyTwenty, monthTotals, occurrences, spendByCateg
 import { evalAmount, toMajor, toMinor } from '../lib/money';
 import { APP_LOCALE } from '../lib/locale';
 import { CustomPanel, TemplatesPanel } from '../components/CustomBudget';
+import { dailyGuide, type CategoryAllowance } from '../lib/allowance';
+import { useReducedMotion } from '../lib/motion';
 
 /* ───────────────────────── Shared bits ───────────────────────── */
 
@@ -43,6 +45,14 @@ const ordinal = (n: number) => {
 
 /** Rounds a suggestion to a friendly figure: nearest 10 major units, or whole units when small. */
 const friendly = (m: Minor) => (m >= 100_00 ? Math.round(m / 10_00) * 10_00 : Math.round(m / 100) * 100);
+
+/** Lets a chart draw in once when it first shows, then holds it still through later re-renders. */
+function useDrawIn() {
+  const reduce = useReducedMotion();
+  const [done, setDone] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setDone(true), 1200); return () => clearTimeout(t); }, []);
+  return !reduce && !done;
+}
 
 const normTag = (t: string) => t.trim().replace(/^#/, '').toLowerCase();
 
@@ -101,6 +111,11 @@ function BudgetsView({ data, budgetStyle }: { data: Data; budgetStyle: BudgetSty
       .sort((a, b) => b.spent / Math.max(1, b.available) - a.spent / Math.max(1, a.available)),
     [data.budgets, data.txs, now],
   );
+  // Today's share per category, worked out once for the whole list.
+  const today = useMemo(() => {
+    const g = dailyGuide({ budgets: data.budgets, txs: data.txs, recurring: data.recurring, categories: data.categories, now });
+    return new Map(g.items.map((i) => [i.categoryId, i]));
+  }, [data.budgets, data.txs, data.recurring, data.categories, now]);
   const budgeted = statuses.reduce((s, x) => s + x.available, 0);
   const spent = statuses.reduce((s, x) => s + x.spent, 0);
   const left = budgeted - spent;
@@ -169,7 +184,7 @@ function BudgetsView({ data, budgetStyle }: { data: Data; budgetStyle: BudgetSty
           <Empty icon={<Plus size={20} />} title="No budgets yet" body="Add a budget for a category you want to keep an eye on, such as groceries or dining out. We suggest an amount from your recent spending." />
         ) : (
           <ul className="-my-1 divide-y divide-line/70">
-            {statuses.map((s) => <BudgetRow key={s.budget.id} s={s} data={data} pace={pace} onOpen={() => setEditing(s.budget.id)} />)}
+            {statuses.map((s) => <BudgetRow key={s.budget.id} s={s} today={today.get(s.budget.categoryId)} data={data} pace={pace} onOpen={() => setEditing(s.budget.id)} />)}
           </ul>
         )}
       </Panel>
@@ -233,10 +248,25 @@ function PaceChart({ statuses, pace, day, data, onOpen }: { statuses: BudgetStat
 
 /* ───────────────────────── Budget row ───────────────────────── */
 
-function BudgetRow({ s, data, pace, onOpen }: { s: BudgetStatus; data: Data; pace: number; onOpen: () => void }) {
+/** The compact "today" line for a budget row. Bills-led categories and overspent months get none. */
+function todayLine(a: CategoryAllowance | undefined, fmt: (m: Minor) => string): { text: ReactNode; over: boolean } | null {
+  if (!a || a.fixed) return null;
+  const money = (m: Minor) => <span className="money">{fmt(m)}</span>;
+  switch (a.state) {
+    case 'fresh': return { text: <>Today: {money(a.today)} to spend</>, over: false };
+    case 'ok':
+    case 'near': return { text: <>Today: {money(a.leftToday)} left of {money(a.today)}</>, over: false };
+    case 'reached': return { text: 'Today’s share used', over: false };
+    case 'over': return a.leftMonth < 0 ? null : { text: <>{money(-a.leftToday)} over today’s share</>, over: true };
+    case 'spent-out': return a.leftMonth < 0 ? null : { text: 'Nothing left for today', over: false };
+  }
+}
+
+function BudgetRow({ s, today, data, pace, onOpen }: { s: BudgetStatus; today?: CategoryAllowance; data: Data; pace: number; onOpen: () => void }) {
   const fmt = useFmt();
   const c = data.cat(s.budget.categoryId);
   const ratio = s.available > 0 ? s.spent / s.available : s.spent > 0 ? 2 : 0;
+  const line = todayLine(today, fmt);
   return (
     <li>
       <button onClick={onOpen} className="w-full flex items-start gap-3 py-3.5 text-left rounded-xl hover:bg-sunk/50 -mx-2 px-2"
@@ -256,6 +286,7 @@ function BudgetRow({ s, data, pace, onOpen }: { s: BudgetStatus; data: Data; pac
             )}
           </p>
           <Bar value={ratio} marker={pace} colour={STATE_FILL[s.state]} />
+          {line && <p className={`text-xs mt-2 num ${line.over ? 'font-semibold text-warn' : 'text-muted'}`}>{line.text}</p>}
           {s.overOnDay !== undefined && (
             <p className="text-xs font-semibold text-warn mt-2 flex items-start gap-1.5">
               <AlertTriangle size={13} className="mt-px shrink-0" aria-hidden />
@@ -437,6 +468,7 @@ function EditBudgetSheet({ s, data, now, onClose }: { s: BudgetStatus; data: Dat
   const parsed = parseAmount(amount);
   const history = categoryHistory(data.txs, s.budget.categoryId, now, 6, s.budget.memberId);
   const budgetMajor = toMajor(parsed ?? s.budget.amount);
+  const draw = useDrawIn();
   const avg = Math.round(history.slice(0, 5).reduce((a, h) => a + h.spent, 0) / 5);
 
   const save = async () => {
@@ -458,7 +490,7 @@ function EditBudgetSheet({ s, data, now, onClose }: { s: BudgetStatus; data: Dat
                 <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'rgb(var(--muted))' }} />
                 <YAxis hide domain={[0, (max: number) => Math.max(max, budgetMajor) * 1.1]} />
                 <Tooltip cursor={{ fill: 'rgb(var(--sunk))' }} formatter={(v) => [fmt(toMinor(Number(v))), 'Spent']} contentStyle={tooltipStyle} />
-                <RBar dataKey="v" radius={[6, 6, 2, 2]} maxBarSize={36}>
+                <RBar dataKey="v" radius={[6, 6, 2, 2]} maxBarSize={36} isAnimationActive={draw} animationDuration={700} animationEasing="ease-out">
                   {history.map((h, i) => <Cell key={i} fill={toMajor(h.spent) > budgetMajor ? 'rgb(var(--bad))' : i === history.length - 1 ? 'rgb(var(--primary))' : 'rgb(var(--primary) / .45)'} />)}
                 </RBar>
                 <ReferenceLine y={budgetMajor} stroke="rgb(var(--ink))" strokeDasharray="4 3" strokeOpacity={0.6}

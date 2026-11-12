@@ -1,11 +1,13 @@
 import { Delete, Fingerprint, Lock, LogOut } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { db, getSetting } from '../db/db';
 import { getAccount, signOut, verifyPasswordLocally, type AccountLink } from '../lib/account';
 import { getPasskey, unlockWithBiometric } from '../lib/biometric';
 import { hashPin } from '../lib/crypto';
 import { askConfirm, useUI } from '../store/ui';
 import iconUrl from '../assets/icon.svg';
+import { prefersReducedMotion } from '../lib/motion';
+import { WaveBackdrop } from './WaveBackdrop';
 
 export interface PinRecord { salt: string; hash: string; autoLockMin: number }
 /** How long Tandem may stay in the background before it asks to unlock again (seconds). */
@@ -57,6 +59,16 @@ export function LockScreen() {
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const tried = useRef(false);
+  // Only ever called after a check has passed: the water rises, then the app shows.
+  const [rising, setRising] = useState(false);
+  const opening = useRef(false);
+  const unlock = useCallback(() => {
+    if (prefersReducedMotion()) { setLocked(false); return; }
+    if (opening.current) return;
+    opening.current = true;
+    setRising(true);
+    setTimeout(() => setLocked(false), 450);
+  }, [setLocked]);
 
   useEffect(() => {
     (async () => {
@@ -72,7 +84,7 @@ export function LockScreen() {
   const bio = async () => {
     setErr(''); setBusy(true);
     try {
-      if (await unlockWithBiometric()) setLocked(false);
+      if (await unlockWithBiometric()) unlock();
       else setErr('That didn’t work. Try again, or use your password.');
     } catch (e) {
       const n = (e as Error).name;
@@ -85,15 +97,16 @@ export function LockScreen() {
   useEffect(() => {
     if (mode !== 'pin' || pin.length < 4 || !m?.pin) return;
     hashPin(pin, m.pin.salt).then(({ hash }) => {
-      if (hash === m.pin!.hash) setLocked(false);
+      if (hash === m.pin!.hash) unlock();
       else if (pin.length >= 6) { setErr('That PIN didn’t match. Try again.'); setPin(''); }
     });
-  }, [pin, mode, m, setLocked]);
+  }, [pin, mode, m, unlock]);
 
   if (!m) return <div className="min-h-screen bg-bg" />;
   return (
-    <div className="min-h-screen grid place-items-center bg-bg px-6 py-10">
-      <div className="w-full max-w-xs text-center">
+    <div className="relative isolate min-h-screen grid place-items-center bg-bg px-6 py-10">
+      <WaveBackdrop rising={rising} />
+      <div className={`relative w-full max-w-xs text-center transition-opacity duration-300 ${rising ? 'opacity-0 pointer-events-none' : ''}`}>
         <img src={iconUrl} alt="" className="mx-auto h-14 w-14 rounded-2xl mb-4" />
         <h1 className="text-2xl font-extrabold tracking-tight">{name ? `Welcome back, ${name}` : 'Welcome back'}</h1>
         {m.account && <p className="sub mt-1 break-all">{m.account.email}</p>}
@@ -110,7 +123,7 @@ export function LockScreen() {
         {mode === 'password' && (
           <form className="mt-8 space-y-3 text-left" onSubmit={async (e) => {
             e.preventDefault(); setBusy(true); setErr('');
-            if (await verifyPasswordLocally(pw)) setLocked(false); else setErr('That password isn’t right.');
+            if (await verifyPasswordLocally(pw)) unlock(); else setErr('That password isn’t right.');
             setBusy(false);
           }}>
             <label className="block" htmlFor="lk-pw"><span className="label">Password</span>

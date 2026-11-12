@@ -1,16 +1,21 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Check, Delete, Split, Star, Sparkles } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { Delete, Split, Star, Sparkles } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { db, defaultMethodFor, getSetting, setSetting } from '../db/db';
 import { PAYMENT_METHODS } from '../lib/payment';
 import { saveTransaction, useData, useProfile } from '../db/hooks';
-import type { PaymentMethod, Transaction, TxType } from '../db/types';
+import type { Minor, PaymentMethod, Transaction, TxType } from '../db/types';
+import { allowanceLine, dailyGuide, type CategoryAllowance } from '../lib/allowance';
 import { quickSuggestions, suggestCategory } from '../lib/categorize';
+import { savedCheer, streaks } from '../lib/cheer';
 import { DAY, isoDate } from '../lib/dates';
 import { success } from '../lib/haptics';
+import { prefersReducedMotion } from '../lib/motion';
 import { evalAmount, splitEvenly, toMinor } from '../lib/money';
 import { useUI } from '../store/ui';
+import { celebrateOnce } from './Confetti';
 import { CatIcon, Segmented, Sheet, useFmt } from './ui';
+import '../styles/quickadd.css';
 
 interface Fav { payee: string; amount: number; categoryId?: string }
 
@@ -34,6 +39,70 @@ function recentRepeats(txs: Transaction[], now = new Date()): Transaction[] {
   }
   return [...seen.values()].sort((a, b) => b.n - a.n || a.order - b.order).slice(0, REPEAT_MAX).map((x) => x.t);
 }
+
+/** How long the check mark on Save plays before the sheet closes. */
+const SAVED_MS = 450;
+const STREAK_MILESTONES = [3, 7, 14, 30, 50, 100];
+
+export type HintTone = 'muted' | 'warn' | 'bad';
+export interface AllowanceHint {
+  text: string;
+  tone: HintTone;
+  /** Meter, in percent of the bar: what was already used, and what this entry adds on top. */
+  used: number;
+  adding: number;
+}
+
+/**
+ * The line under the category picker. `before` is the category as it stands without this entry;
+ * `after` is the same category with the typed amount counted (omit it while nothing is typed).
+ * Everyday categories talk about today's share, bill-driven ones about the month only.
+ */
+export function allowanceHint(before: CategoryAllowance, after: CategoryAllowance | undefined, name: string, fmt: (m: Minor) => string): AllowanceHint {
+  const a = after ?? before;
+  const lead = after ? 'After this' : name;
+  const overMonth = a.leftMonth < 0;
+  let text: string;
+  let tone: HintTone = 'muted';
+  if (overMonth) {
+    text = `${lead}: ${fmt(-a.leftMonth)} over this month’s budget`;
+    tone = 'bad';
+  } else if (a.fixed) {
+    text = `${lead}: ${fmt(a.leftMonth)} left this month`;
+    if (a.leftMonth === 0) tone = 'warn';
+  } else if (a.leftToday > 0) {
+    text = `${lead}: ${fmt(a.leftToday)} left for today`;
+    if (a.spentToday >= a.today * 0.75) tone = 'warn';
+  } else if (a.leftToday === 0 && a.today > 0) {
+    text = `${lead}: today’s share is used · ${fmt(a.leftMonth)} left this month`;
+    tone = 'warn';
+  } else if (a.leftToday === 0) {
+    // No share for today and nothing spent today.
+    text = a.leftMonth > 0 ? `${lead}: ${fmt(a.leftMonth)} left this month` : `${lead}: this month’s budget is used`;
+    tone = 'warn';
+  } else {
+    text = `${lead}: ${fmt(-a.leftToday)} over today’s share · ${fmt(a.leftMonth)} still left this month`;
+    tone = 'bad';
+  }
+
+  // Meter: today's share for everyday categories, the month's budget for bill-driven ones.
+  const [was, now, cap] = a.fixed ? [before.spentMonth, a.spentMonth, a.budget] : [before.spentToday, a.spentToday, a.today];
+  const scale = Math.max(cap, now, 0);
+  const pct = (m: Minor) => (scale > 0 ? Math.min(100, Math.max(0, (m / scale) * 100)) : overMonth || a.leftMonth === 0 ? 100 : 0);
+  const total = pct(now);
+  const used = Math.min(pct(was), total);
+  return { text, tone, used, adding: total - used };
+}
+
+const HINT_TEXT: Record<HintTone, string> = { muted: 'text-muted', warn: 'text-warn', bad: 'text-bad' };
+const HINT_BAR: Record<HintTone, [string, string]> = {
+  muted: ['bg-primary', 'bg-primary/40'],
+  warn: ['bg-warn', 'bg-warn/40'],
+  bad: ['bg-bad', 'bg-bad/40'],
+};
+
+/** The chosen day at the current time of day, so entries logged today sort in the order they were made. */
+const entryDate = (day: string) => new Date(`${day}T${new Date().toTimeString().slice(0, 5)}`);
 
 const KEYS = ['7', '8', '9', '÷', '4', '5', '6', '×', '1', '2', '3', '−', '.', '0', '⌫', '+'];
 
@@ -59,6 +128,7 @@ export function QuickAdd() {
   const [splitMembers, setSplitMembers] = useState<string[]>([]);
   const [showMore, setShowMore] = useState(false);
   const [done, setDone] = useState(false);
+  const saving = useRef(false);
 
   useEffect(() => {
     if (!quickAdd.open) return;
@@ -72,6 +142,7 @@ export function QuickAdd() {
     setTags('');
     if (d.paymentMethod) setMethod(d.paymentMethod as PaymentMethod);
     setSplitMembers([]); setShowMore(false); setDone(false); setAutoCat(null);
+    saving.current = false;
   }, [quickAdd.open, quickAdd.type, quickAdd.draft]);
 
   useEffect(() => {
@@ -104,6 +175,27 @@ export function QuickAdd() {
       .sort((a, b) => (uses.get(b.id) ?? 0) - (uses.get(a.id) ?? 0));
   }, [data, type]);
   const chosenCat = categoryId ?? autoCat?.id;
+
+  // Where the chosen category stands today, and where it would stand with this entry saved.
+  const amountNow = value && value > 0 ? toMinor(value) : 0;
+  const editingId = quickAdd.draft?.id as string | undefined;
+  const liveHint = useMemo(() => {
+    if (!data || !quickAdd.open || type !== 'expense' || !chosenCat) return null;
+    const now = new Date();
+    // An entry being edited is left out of the "before" figures, so it isn't counted twice.
+    const txs = editingId ? data.txs.filter((t) => t.id !== editingId) : data.txs;
+    const guide = (list: Transaction[]) => dailyGuide({ budgets: data.budgets, txs: list, recurring: data.recurring, categories: data.categories, now })
+      .items.find((i) => i.categoryId === chosenCat);
+    const before = guide(txs);
+    if (!before) return null;
+    const preview = { id: 'qa-preview', type: 'expense', amount: amountNow, categoryId: chosenCat, date: entryDate(date).toISOString() } as Transaction;
+    const after = amountNow > 0 ? guide([preview, ...txs]) : undefined;
+    return allowanceHint(before, after, data.cat(chosenCat)?.name ?? 'This category', fmt);
+  }, [data, quickAdd.open, type, chosenCat, amountNow, date, editingId, fmt]);
+  // Once saving starts the entry lands in `data`, so hold the line as it was rather than count it twice.
+  const heldHint = useRef(liveHint);
+  if (!saving.current) heldHint.current = liveHint;
+  const hint = heldHint.current;
 
   // Keep the payment method and the account in step: paying cash moves the entry to the cash
   // wallet, picking a credit card account sets "Credit card", and so on. Either can be overridden.
@@ -142,25 +234,57 @@ export function QuickAdd() {
   });
 
   async function save() {
-    if (!value || value <= 0 || !accountId || !data) return;
+    if (!value || value <= 0 || !accountId || !data || saving.current) return;
+    saving.current = true;
     const amount = toMinor(value);
     const splits = splitMembers.length > 1 && chosenCat
       ? splitEvenly(amount, splitMembers.length).map((a, i) => ({ categoryId: chosenCat, memberId: splitMembers[i], amount: a }))
       : undefined;
-    const when = new Date(`${date}T${new Date().toTimeString().slice(0, 5)}`);
-    const row = await saveTransaction({
-      amount, type, accountId, toAccountId: type === 'transfer' ? toAccountId : undefined,
-      categoryId: type === 'transfer' ? undefined : chosenCat, payee: payee || undefined, memberId, notes: notes.trim() || undefined,
-      paymentMethod: type === 'transfer' ? undefined : method,
-      tags: tags.split(',').map((t) => t.trim().toLowerCase().replace(/^#/, '')).filter(Boolean),
-      date: when.toISOString(), currency: profile?.currency, splits, source: (quickAdd.draft?.source as 'voice') ?? 'manual',
-    });
-    setDone(true);
+    const when = entryDate(date);
+    let row: Transaction;
+    try {
+      row = await saveTransaction({
+        amount, type, accountId, toAccountId: type === 'transfer' ? toAccountId : undefined,
+        categoryId: type === 'transfer' ? undefined : chosenCat, payee: payee || undefined, memberId, notes: notes.trim() || undefined,
+        paymentMethod: type === 'transfer' ? undefined : method,
+        tags: tags.split(',').map((t) => t.trim().toLowerCase().replace(/^#/, '')).filter(Boolean),
+        date: when.toISOString(), currency: profile?.currency, splits, source: (quickAdd.draft?.source as 'voice') ?? 'manual',
+      });
+    } catch (e) {
+      saving.current = false;
+      throw e;
+    }
     success();
-    setTimeout(() => {
+
+    // Work out what to say from the entries as they are now, the new one included.
+    const now = new Date();
+    const txs = [row, ...data.txs.filter((t) => t.id !== row.id)];
+    const before = streaks(data.txs, now);
+    const run = streaks(txs, now);
+    const firstToday = !before.loggedToday && run.loggedToday;
+    let text = `Saved ${fmt(amount)}${payee ? ` · ${payee}` : ''}`;
+    if (type === 'expense') {
+      const item = row.categoryId
+        ? dailyGuide({ budgets: data.budgets, txs, recurring: data.recurring, categories: data.categories, now }).items.find((i) => i.categoryId === row.categoryId)
+        : undefined;
+      const line = item ? allowanceLine(item, data.cat(item.categoryId)?.name ?? 'This category', fmt) : undefined;
+      // Unbudgeted categories only get the streak and first-entry phrases.
+      const kind = savedCheer({ state: item?.state ?? 'fresh', streak: run.logging, firstToday });
+      // Two short sentences at most after "Saved …": the allowance, then a kind word if there's room.
+      const twoAlready = !!line && /\.\s/.test(line);
+      const extra = [line, twoAlready ? undefined : kind].filter(Boolean).join(' ');
+      if (extra) text += `. ${extra}`;
+    }
+    const milestone = firstToday && STREAK_MILESTONES.includes(run.logging) ? run.logging : 0;
+
+    const finish = () => {
       closeQuickAdd();
-      toast(`Saved ${fmt(amount)}${payee ? ` · ${payee}` : ''}`, async () => { await db.transactions.delete(row.id); });
-    }, 380);
+      toast(text, async () => { await db.transactions.delete(row.id); });
+      if (milestone) celebrateOnce(`streak-${milestone}-${isoDate(now)}`);
+    };
+    if (prefersReducedMotion()) return finish();
+    setDone(true);
+    setTimeout(finish, SAVED_MS);
   }
 
   async function addFav() {
@@ -200,7 +324,6 @@ export function QuickAdd() {
             <span className={`display text-[44px] ${value === null && expr ? 'text-bad' : ''}`}>
               {value !== null ? fmt(toMinor(value)) : expr ? 'Check the sum' : fmt(0)}
             </span>
-            {done && <span className="animate-pop h-10 w-10 rounded-full bg-good text-white grid place-items-center"><Check size={22} /></span>}
           </div>
           <p className="text-[13px] text-muted num h-5">{isExpr ? expr : expr ? ' ' : 'Type an amount — sums like 250+120×2 work too'}</p>
         </div>
@@ -280,6 +403,19 @@ export function QuickAdd() {
                   </button>
                 ))}
               </div>
+              {type === 'expense' && (
+                <div aria-live="polite" data-testid="qa-hint">
+                  {hint && (
+                    <div className="mt-2 min-w-0">
+                      <p className={`text-[13px] font-semibold leading-snug break-words num ${HINT_TEXT[hint.tone]}`}>{hint.text}</p>
+                      <div className="qa-meter mt-1.5 bg-sunk" aria-hidden>
+                        <span className={HINT_BAR[hint.tone][0]} style={{ width: `${hint.used}%` }} />
+                        <span className={HINT_BAR[hint.tone][1]} style={{ width: `${hint.adding}%` }} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <label className="block">
               <span className="label">For what?</span>
@@ -336,8 +472,15 @@ export function QuickAdd() {
 
         <div className="sticky -bottom-5 -mx-5 px-5 pt-3 pb-5 -mb-5 bg-surface flex gap-2 border-t border-line/60">
           {type !== 'transfer' && <button className="btn-soft w-11 p-0" onClick={addFav} aria-label="Save as favourite" title="Save as favourite"><Star size={18} /></button>}
-          <button className="btn-primary flex-1 h-12 text-base" disabled={!value || value <= 0} onClick={save}>
-            Save {value ? fmt(toMinor(value)) : ''}
+          <button className={`btn-primary flex-1 h-12 text-base ${done ? 'qa-save-done' : ''}`} disabled={!value || value <= 0} onClick={save}>
+            {done ? (
+              <>
+                <svg className="qa-check" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M5 12.5l4.5 4.5L19 7.5" />
+                </svg>
+                <span className="sr-only" role="status">Saved</span>
+              </>
+            ) : <>Save {value ? fmt(toMinor(value)) : ''}</>}
           </button>
         </div>
       </div>

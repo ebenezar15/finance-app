@@ -2,10 +2,11 @@ import {
   Archive, ArchiveRestore, ArrowDown, ArrowUp, Banknote, CalendarClock, ChevronDown, ChevronRight, CreditCard, HandCoins, House,
   Landmark, Pencil, PiggyBank, Plus, Scale, Trash2, TrendingUp, Wallet,
 } from 'lucide-react';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Area, AreaChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Bar, Empty, Money, Panel, Sheet, useFmt } from '../components/ui';
+import { useReducedMotion } from '../lib/motion';
 import { db, uid } from '../db/db';
 import { saveTransaction, useData, useProfile, type Data } from '../db/hooks';
 import { PALETTE } from '../db/seed';
@@ -52,6 +53,14 @@ const updatedLabel = (at: number) => {
   return d <= 0 ? 'Updated today' : d === 1 ? 'Updated yesterday' : d < 60 ? `Updated ${d} days ago` : `Updated ${Math.round(d / 30)} months ago`;
 };
 
+/** Lets a chart draw in once when it first shows, then holds it still through later re-renders. */
+function useDrawIn() {
+  const reduce = useReducedMotion();
+  const [done, setDone] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setDone(true), 1200); return () => clearTimeout(t); }, []);
+  return !reduce && !done;
+}
+
 export default function Wealth() {
   const data = useData();
   if (!data) return null;
@@ -60,6 +69,7 @@ export default function Wealth() {
 
 function WealthInner({ data }: { data: Data }) {
   const fmt = useFmt();
+  const draw = useDrawIn();
   const now = useMemo(() => new Date(), []);
   const [editing, setEditing] = useState<{ open: boolean; h?: Holding; n: number }>({ open: false, n: 0 });
   const openHolding = (h?: Holding) => setEditing((c) => ({ open: true, h, n: c.n + 1 }));
@@ -134,7 +144,7 @@ function WealthInner({ data }: { data: Data }) {
                 <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'rgb(var(--muted))' }} interval="preserveStartEnd" />
                 <YAxis axisLine={false} tickLine={false} width={56} tick={{ fontSize: 11, fill: 'rgb(var(--muted))' }} tickFormatter={(v) => fmt(Number(v), { compact: true })} domain={['auto', 'auto']} />
                 <Tooltip contentStyle={tipStyle} formatter={(v) => [fmt(Number(v ?? 0)), 'Net worth']} />
-                <Area type="monotone" dataKey="value" stroke="rgb(var(--primary))" strokeWidth={2.5} fill="url(#nw)" />
+                <Area type="monotone" dataKey="value" stroke="rgb(var(--primary))" strokeWidth={2.5} fill="url(#nw)" isAnimationActive={draw} animationDuration={700} animationEasing="ease-out" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -149,7 +159,7 @@ function WealthInner({ data }: { data: Data }) {
               <div className="relative h-40 w-40 shrink-0">
                 <ResponsiveContainer>
                   <PieChart>
-                    <Pie data={allocation.rows} dataKey="value" nameKey="name" innerRadius={52} outerRadius={76} paddingAngle={2} stroke="none">
+                    <Pie data={allocation.rows} dataKey="value" nameKey="name" innerRadius={52} outerRadius={76} paddingAngle={2} stroke="none" isAnimationActive={draw} animationDuration={700} animationEasing="ease-out">
                       {allocation.rows.map((r) => <Cell key={r.name} fill={r.colour} />)}
                     </Pie>
                     <Tooltip contentStyle={tipStyle} formatter={(v, n) => [fmt(Number(v ?? 0)), String(n)]} />

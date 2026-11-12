@@ -15,6 +15,9 @@ import { APP_LOCALE } from '../lib/locale';
 import { InstallNudge } from '../components/InstallApp';
 import { TideHero } from '../components/TideHero';
 import { DailyTip, useTipsHidden } from '../components/DailyTip';
+import { TodayGuide } from '../components/TodayGuide';
+import { CheerStrip } from '../components/CheerStrip';
+import { dailyGuide } from '../lib/allowance';
 import { useBackup } from '../lib/autoBackup';
 
 const CARD_NAMES: Record<string, string> = {
@@ -55,6 +58,7 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
   // Water level: share of this month's spending money still left (what's safe to spend for the rest of the month vs. already spent).
   const leftThisMonth = Math.max(0, safe.today) * safe.daysLeft;
   const tide = leftThisMonth + totals.expense > 0 ? leftThisMonth / (leftThisMonth + totals.expense) : 0.5;
+  const guide = useMemo(() => dailyGuide({ budgets: data.budgets, txs: data.txs, recurring: data.recurring, categories: data.categories, now }), [data.budgets, data.txs, data.recurring, data.categories, now]);
   const nwPrev = data.netWorth - totals.net; // rough: last month's closing ≈ now minus this month's net
 
   const cards: Record<string, JSX.Element> = {
@@ -211,6 +215,8 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
         <button className="btn-ghost text-muted" onClick={() => setCustomise(true)}><LayoutGrid size={17} /> <span className="hidden sm:inline">Customise</span></button>
       </div>
 
+      <CheerStrip data={data} guide={guide} name={profile.primaryUser || undefined} />
+
       {/* Hero: the one number that matters day to day, over a tide of what's left this month */}
       <div className="grid lg:grid-cols-[1.55fr_1fr] gap-4 md:gap-6">
         <TideHero level={tide} label={`${Math.round(tide * 100)}% of this month’s spending money is left, with ${safe.daysLeft} days to go.`}
@@ -228,13 +234,14 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
               : <>After <span className="money num font-semibold text-tidefg">{fmt(safe.billsLeft)}</span> of bills still due and your goal savings, over the {safe.daysLeft} days left this month.</>}
           </p>
         </TideHero>
-        <div className="panel grid grid-cols-2 lg:grid-cols-1 overflow-hidden">
+        <div className="order-3 lg:order-2 panel grid grid-cols-2 lg:grid-cols-1 overflow-hidden">
           <HeroStat label="Income this month" value={totals.income} prev={prevTotals.income} good="up" />
           <HeroStat label="Spent this month" value={totals.expense} prev={prevTotals.expense} good="down" pace={pace} />
           <div className="col-span-2 lg:col-span-1 px-5 md:px-6 py-4 border-t border-line/70 flex items-center justify-between gap-3">
             <span className="text-sm font-semibold text-muted">Everyday accounts</span><Money value={data.spendable} animate className="font-display text-lg font-bold" />
           </div>
         </div>
+        <div className="order-2 lg:order-3 lg:col-span-2 min-w-0"><TodayGuide guide={guide} data={data} /></div>
       </div>
 
       <DailyTip data={data} />

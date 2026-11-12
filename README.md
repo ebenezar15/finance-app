@@ -58,8 +58,8 @@ Shortcuts on desktop: `Ctrl K` / `⌘K` opens search and commands (pages, action
 
 | Area | Highlights |
 |---|---|
-| Home | A tide-gauge hero (today's safe-to-spend over a water level showing how much of this month's spending money is left), a daily money tip or fact (personal when your data suggests one; save, share or get another), an interactive cash-flow river (income → categories → kept), cards you can reorder or hide, a kid-friendly home with savings jars |
-| Quick add | "Log again" chips for your frequent spends, keypad-first sheet with a built-in calculator (`250+120×2`), "For what?" notes, how you paid (cash, card, online/UPI, transfer, wallet, cheque), tags, suggestions by time of day, favourites, per-member splits, undo |
+| Home | A daily guide by category (today's share of each budget as a vessel that drains as you spend, what's left today and this month, tap to log), a daily pat on the back with logging streaks and wins to earn, a tide-gauge hero (today's safe-to-spend over a water level showing how much of this month's spending money is left), a daily money tip or fact (personal when your data suggests one; save, share or get another), an interactive cash-flow river (income → categories → kept), cards you can reorder or hide, a kid-friendly home with savings jars |
+| Quick add | A live "left for today" hint for the chosen category and a short allowance summary after saving, "Log again" chips for your frequent spends, keypad-first sheet with a built-in calculator (`250+120×2`), "For what?" notes, how you paid (cash, card, online/UPI, transfer, wallet, cheque), tags, suggestions by time of day, favourites, per-member splits, undo |
 | Activity | Instant search, filters, bulk edit, CSV export, a 30-day trash |
 | Budgets | Envelope, zero-based, 50/30/20, simple caps or your own custom groups and percentages; saved budget templates; rollover; burn-rate warnings; event budgets |
 | Bills | Calendar, recurring rules with auto-post, subscription detector with price-change alerts, reminders |

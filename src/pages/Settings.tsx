@@ -1,15 +1,15 @@
-import { Cloud, Download, Mail, Smartphone, KeyRound, Lock, Shield, Upload } from 'lucide-react';
+import { Cloud, Download, Mail, Smartphone, KeyRound, Lock, Shield } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Link, useNavigate } from 'react-router-dom';
 import { useState, type ReactNode } from 'react';
 import { Panel } from '../components/ui';
 import type { PinRecord } from '../components/Lock';
-import { snapshot, exportEncrypted, importEncrypted } from '../db/backup';
+import { snapshot, exportEncrypted } from '../db/backup';
 import { db, setSetting } from '../db/db';
 import { saveProfile, useData, useProfile } from '../db/hooks';
 import { clearToFreshStart, seedDemo, wipeAll } from '../db/seed';
 import type { BudgetStyle, Profile } from '../db/types';
-import { hashPin, type Envelope } from '../lib/crypto';
+import { hashPin } from '../lib/crypto';
 import { toCSV } from '../lib/csv';
 import { isoDate } from '../lib/dates';
 import { CurrencySelect } from '../components/CurrencySelect';
@@ -19,7 +19,7 @@ import { SyncBadge } from '../components/SyncBadge';
 import { canShareFiles, saveFile, shareFile } from '../lib/download';
 import { askConfirm, useUI } from '../store/ui';
 import { APP_LOCALE } from '../lib/locale';
-import { BackupCenter } from '../components/BackupCenter';
+import { BackupCenter, RestoreFromPhone } from '../components/BackupCenter';
 import { AccountPanel } from '../components/AccountPanel';
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleDateString(APP_LOCALE, { month: 'long' }));
@@ -204,9 +204,6 @@ function Backup({ currency }: { currency: string }) {
   const [p2, setP2] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [file, setFile] = useState<File | null>(null);
-  const [rp, setRp] = useState('');
-  const [rErr, setRErr] = useState('');
   const stale = last === null || (last !== undefined && Date.now() - last > 30 * 86400_000);
 
   const backup = async (via: 'download' | 'share' = 'download') => {
@@ -218,7 +215,7 @@ function Backup({ currency }: { currency: string }) {
       const name = `tandem-${isoDate(new Date())}.tandem`;
       const blob = new Blob([JSON.stringify(env)], { type: 'application/json' });
       const ok = via === 'share'
-        ? await shareFile(name, blob, 'My Tandem backup. It’s encrypted; open it in Tandem → Settings → Restore with your passphrase.')
+        ? await shareFile(name, blob, 'My Tandem backup. It’s encrypted; open it in Tandem → Settings → Restore from a backup with your passphrase.')
         : await download(name, blob);
       if (!ok) return;
       await setSetting('lastBackup', Date.now());
@@ -226,20 +223,6 @@ function Backup({ currency }: { currency: string }) {
       toast(via === 'share' ? 'Backup shared. Keep the passphrase somewhere safe.' : 'Encrypted backup downloaded. Keep the passphrase somewhere safe.');
     } catch { setErr('The backup could not be created on this device.'); }
     finally { setBusy(false); }
-  };
-
-  const doRestore = async () => {
-    if (!file || !rp) return setRErr('Choose a file and enter its passphrase.');
-    if (!(await askConfirm('Restoring replaces all the data on this device with the backup.', 'Replace my data'))) return;
-    setRErr(''); setBusy(true);
-    try {
-      const env = JSON.parse(await file.text()) as Envelope;
-      await importEncrypted(env, rp);
-      setFile(null); setRp('');
-      toast('Backup restored');
-    } catch (e) {
-      setRErr(e instanceof SyntaxError ? 'This file is not a Tandem backup.' : e instanceof Error ? e.message : 'Could not restore this file.');
-    } finally { setBusy(false); }
   };
 
   const exportCSV = () => {
@@ -277,13 +260,9 @@ function Backup({ currency }: { currency: string }) {
         </div>
       </form>
 
-      <h3 className="font-bold text-sm mt-6">Restore from backup</h3>
-      <form className="grid sm:grid-cols-2 gap-3 mt-3" onSubmit={(e) => { e.preventDefault(); doRestore(); }}>
-        <div><label className="label" htmlFor="rs-file">Backup file</label><input id="rs-file" className="field pt-2" type="file" accept=".tandem,.json,application/json" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></div>
-        <div><label className="label" htmlFor="rs-pass">Passphrase</label><input id="rs-pass" className="field" type="password" autoComplete="current-password" value={rp} onChange={(e) => setRp(e.target.value)} /></div>
-        {rErr && <p className="text-sm text-bad font-semibold sm:col-span-2" role="alert">{rErr}</p>}
-        <div className="sm:col-span-2"><button type="submit" className="btn-soft" disabled={busy}><Upload size={16} /> Restore from backup</button></div>
-      </form>
+      {import.meta.env.VITE_EMBED === '1'
+        ? <RestoreFromPhone className="mt-4" />
+        : <p className="text-xs text-muted mt-3">To bring a backup back, use <b>Restore from a backup on this phone</b> under Automatic backup above. It reads these encrypted files too.</p>}
 
       <h3 className="font-bold text-sm mt-6">Export</h3>
       <div className="flex flex-wrap gap-2 mt-3">

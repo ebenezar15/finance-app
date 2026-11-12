@@ -6,6 +6,7 @@ import type { Category, Member } from '../db/types';
 import { formatMoney } from '../lib/money';
 import { useUI } from '../store/ui';
 import { useMounted, useTween } from '../lib/motion';
+import '../styles/motion-extra.css';
 
 export function Money({ value, className = '', sign, compact, currency, animate }: { value: number; className?: string; sign?: boolean; compact?: boolean; currency?: string; animate?: boolean }) {
   const profile = useProfile();
@@ -127,7 +128,10 @@ export function Segmented<T extends string>({ value, onChange, options, label }:
 export function Empty({ icon, title, body, action }: { icon: ReactNode; title: string; body: string; action?: ReactNode }) {
   return (
     <div className="text-center py-10 px-6">
-      <div className="mx-auto mb-3 h-12 w-12 rounded-2xl bg-sunk grid place-items-center text-muted">{icon}</div>
+      <div className="relative mx-auto mb-5 h-12 w-12">
+        <span aria-hidden className="empty-ripple absolute left-1/2 -bottom-2.5 -ml-6 h-2.5 w-12 rounded-[50%] border-[1.5px] border-primary/60" />
+        <div className="empty-bob relative h-12 w-12 rounded-2xl bg-sunk grid place-items-center text-muted">{icon}</div>
+      </div>
       <p className="font-bold">{title}</p>
       <p className="sub mt-1 max-w-sm mx-auto">{body}</p>
       {action && <div className="mt-4">{action}</div>}
