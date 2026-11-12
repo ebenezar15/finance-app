@@ -1,0 +1,45 @@
+plugins { id 'com.android.application' }
+
+android {
+  namespace 'app.tandem.companion'
+  compileSdk 34
+
+  defaultConfig {
+    applicationId 'app.tandem.companion'
+    minSdk 26
+    targetSdk 34
+    versionCode 1
+    versionName '1.0'
+  }
+
+  // The signing key is never kept in the repository. The build workflow supplies one through
+  // these environment variables (see .github/workflows/companion.yml); without them the build
+  // falls back to Android's throwaway debug key, which is fine for trying it locally.
+  def ksPath = System.getenv('COMPANION_KEYSTORE')
+  def hasKey = ksPath != null && file(ksPath).exists()
+  signingConfigs {
+    release {
+      if (hasKey) {
+        storeFile file(ksPath)
+        storePassword System.getenv('COMPANION_KEYSTORE_PASSWORD')
+        keyAlias 'companion'
+        keyPassword System.getenv('COMPANION_KEYSTORE_PASSWORD')
+      }
+    }
+  }
+  buildTypes {
+    release {
+      minifyEnabled false
+      signingConfig hasKey ? signingConfigs.release : signingConfigs.debug
+    }
+  }
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+  lint { abortOnError false }
+}
+
+dependencies {
+  testImplementation 'junit:junit:4.13.2'
+}
