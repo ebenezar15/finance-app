@@ -57,10 +57,16 @@ It's kept for phones where Play Protect allows it. It checks every message on th
 
 ### iPhone: Shortcuts
 
-1. **Shortcuts → Automation → +**, choose **Message**.
-2. **Message Contains**: a word your bank always uses, such as `debited`. Choose **Run Immediately**.
-3. Add **Get Contents of URL**: URL = your capture link, Method **POST**, Request Body **Form**, with a field `text` set to **Shortcut Input**.
-4. Repeat for other words such as `credited` or `spent`.
+A picture guide to these steps is in [`iphone-setup.png`](iphone-setup.png). They are for iOS 17, 18 and 26.
+
+1. In Tandem, copy your capture link.
+2. **Shortcuts → Automation → +** (or **New Automation**), and choose **Message**.
+3. Tap **Message Contains** and enter a word your bank always uses, such as `debited`. Choose **Run Immediately**, then **Next**.
+4. Tap **New Blank Automation → Add Action** and search for **Get Contents of URL**.
+5. Paste the capture link as the URL. Show more, set **Method** to **POST** and **Request Body** to **Form**. Add a **Text** field with the key `text` and the value **Shortcut Input**. Tap **Done**.
+6. Repeat for other words such as `credited` or `spent`.
+
+**iOS 27** arranges this differently. Apple's guide says to create a shortcut containing the **Get Contents of URL** action first, then tap **Edit → Automation** and choose **Message**. To run it without asking: **Edit → ⓘ → Privacy → Allow Running When Locked**.
 
 iPhone doesn't let any app read Google Pay or PhonePe notifications. Your bank's SMS covers the same payments.
 

@@ -123,11 +123,14 @@ export function AutoCapturePanel() {
               <li>In the companion app, allow reading SMS and notification access, then tap <b>Send a test to Tandem</b>.</li>
             </Steps>
             <Steps title="Set up on iPhone (bank SMS)" open={open === 'iphone'} onToggle={() => setOpen(open === 'iphone' ? null : 'iphone')}>
-              <li>Open the <b>Shortcuts</b> app, go to <b>Automation</b> and tap <b>+</b>.</li>
-              <li>Choose <b>Message</b>. Under <b>Message Contains</b> enter a word your bank always uses, such as <b>debited</b>. Choose <b>Run Immediately</b>.</li>
-              <li>Add the action <b>Get Contents of URL</b>. Paste your capture link, set <b>Method</b> to <b>POST</b>, <b>Request Body</b> to <b>Form</b>, and add a field named <b>text</b> whose value is <b>Shortcut Input</b> (the message).</li>
-              <li>Repeat for other words your bank uses, such as <b>credited</b> or <b>spent</b>.</li>
-              <li>iPhone doesn’t let any app read Google Pay or PhonePe notifications, but your bank’s SMS covers the same payments. Menu names can differ slightly between iOS versions.</li>
+              <li>Copy your capture link above. Open the <b>Shortcuts</b> app, tap the <b>Automation</b> tab, then <b>+</b> (or <b>New Automation</b>).</li>
+              <li>Choose <b>Message</b>. Tap <b>Message Contains</b> and enter a word your bank always uses, such as <b>debited</b>. Choose <b>Run Immediately</b> and tap <b>Next</b>.</li>
+              <li>Tap <b>New Blank Automation</b>, then <b>Add Action</b>, and search for <b>Get Contents of URL</b>.</li>
+              <li>Paste your capture link as the URL. Tap the arrow to show more, set <b>Method</b> to <b>POST</b> and <b>Request Body</b> to <b>Form</b>. Tap <b>Add new field → Text</b>, type <b>text</b> as the key, and choose <b>Shortcut Input</b> as the value. Tap <b>Done</b>.</li>
+              <li>Repeat for other words your bank uses, such as <b>credited</b> or <b>spent</b>. Then tap <b>Send a test</b> above.</li>
+              <li className="list-none -ml-5 text-xs text-muted">
+                These steps are for iOS 17, 18 and 26. On iOS 27, Apple’s guide says to create a shortcut with the <b>Get Contents of URL</b> action first, then tap <b>Edit → Automation</b> and choose <b>Message</b>; to run it without asking, tap <b>Edit</b>, the <b>ⓘ</b> button, <b>Privacy</b>, and turn on <b>Allow Running When Locked</b>. iPhone doesn’t let any app read Google Pay or PhonePe notifications, but your bank’s SMS covers the same payments.
+              </li>
             </Steps>
           </div>
         )}
