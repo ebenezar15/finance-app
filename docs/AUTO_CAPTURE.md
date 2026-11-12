@@ -27,11 +27,13 @@ You need a Tandem account (Settings → Account & unlock). Then go to **Settings
 
 MacroDroid is a free automation app. Because it comes from the Play Store, Google Play Protect doesn't block it.
 
+A picture guide to these steps is in [`macrodroid-setup.png`](macrodroid-setup.png).
+
 Tandem gives you the whole configuration to paste: in **Settings → Automatic payment capture → Android: MacroDroid**, there are two **Copy** buttons.
 
 1. Install **MacroDroid** from the Play Store.
 2. **First macro, for bank SMS.** Add Macro → under **Triggers** tap **+**, search **SMS Received**, any sender, any content.
-3. Under **Actions** tap **+**, search **HTTP Request**, open its **⋮** menu, choose **Import from cURL string**, and paste what **Copy for the SMS macro** gave you. Save the macro.
+3. Under **Actions** tap **+**, search **HTTP Request**, tap the **import** icon at the top of that screen (an arrow going into a box), choose **Import from cURL string**, and paste what **Copy for the SMS macro** gave you. Tap **✓** and save the macro.
 4. **Second macro, for payment apps.** Trigger: **Notification Received**, picking Google Pay, PhonePe and Paytm. Action: **HTTP Request**, importing what **Copy for the payment apps macro** gave you.
 5. Allow the permissions MacroDroid asks for, and turn off battery optimisation for it.
 6. In Tandem, tap **Send a test**. Then make a small payment and open Tandem.

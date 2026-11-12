@@ -94,9 +94,9 @@ export function AutoCapturePanel() {
                 <b>First macro, for bank SMS.</b> Tap <b>Add Macro</b>. Under <b>Triggers</b> tap <b>+</b>, search for <b>SMS Received</b>, and choose any sender and any content.
               </li>
               <li>
-                Under <b>Actions</b> tap <b>+</b> and search for <b>HTTP Request</b>. Open its <b>⋮</b> menu, choose <b>Import from cURL string</b>, and paste this:
+                Under <b>Actions</b> tap <b>+</b> and search for <b>HTTP Request</b>. At the top of that screen tap the <b>import</b> icon (an arrow going into a box), choose <b>Import from cURL string</b>, and paste this:
                 <CopyBlock label="Copy for the SMS macro" text={curl(url, '{sms_message}')} />
-                Tap OK, give the macro a name such as “Tandem SMS”, and save it.
+                Tap the <b>✓</b>, give the macro a name such as “Tandem SMS”, and save it.
               </li>
               <li>
                 <b>Second macro, for payment apps.</b> Add another macro. Trigger: <b>Notification Received</b>, and pick Google Pay, PhonePe and Paytm. Action: <b>HTTP Request</b> again, importing this:
