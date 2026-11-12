@@ -4,7 +4,7 @@
 // check who is signing in, but it can never read anyone's finances.
 //
 // Storage: Upstash Redis over REST (Vercel → Storage → Upstash for Redis sets these env vars).
-import { randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
+import { constants, createCipheriv, createHash, createPublicKey, publicEncrypt, randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 
 const scrypt = promisify(scryptCb);
@@ -151,11 +151,60 @@ export async function handleAccount(body, { redis, ip = 'unknown' }) {
       return ok({ version });
     }
 
+    // ── Automatic payment capture ──────────────────────────────────────────────────────────
+    // The person's phone forwards payment messages to /api/capture with a private link. Each
+    // message is encrypted to the account's public key the moment it arrives, so only the
+    // person's own devices (which hold the private key, itself wrapped by their data key) can
+    // read the queue. See ingestCapture() below.
+    case 'capture-enable': {
+      const who = await sessionEmail(redis, body.token);
+      if (!who) return fail(401, 'signed_out', 'Your session ended. Sign in again.');
+      if (!isB64(body.publicKey, 200, 1200) || !body.wrappedPrivate || !isB64(body.wrappedPrivate.iv, 8, 64) || !isB64(body.wrappedPrivate.ct, 200, 4096)) return fail(400, 'bad_request', 'Something went wrong. Try again.');
+      try { createPublicKey({ key: Buffer.from(body.publicKey, 'base64'), format: 'der', type: 'spki' }); } catch { return fail(400, 'bad_request', 'Something went wrong. Try again.'); }
+      const old = await redis.get(`capcfg:${who}`);
+      if (old?.th) await redis.del(`cap:${old.th}`);
+      const link = randomBytes(24).toString('base64url');
+      const th = sha256(link);
+      await redis.set(`cap:${th}`, { email: who });
+      await redis.set(`capcfg:${who}`, { th, publicKey: body.publicKey, wrappedPrivate: body.wrappedPrivate, createdAt: Date.now() });
+      await redis.del(`capq:${who}`); // anything queued was encrypted to the old key
+      return ok({ link });
+    }
+
+    case 'capture-status':
+    case 'capture-pull': {
+      const who = await sessionEmail(redis, body.token);
+      if (!who) return fail(401, 'signed_out', 'Your session ended. Sign in again.');
+      const cfg = await redis.get(`capcfg:${who}`);
+      if (!cfg) return ok({ enabled: false, items: [] });
+      let q = (await redis.get(`capq:${who}`)) ?? [];
+      if (action === 'capture-pull' && Array.isArray(body.ack) && body.ack.length) {
+        const done = new Set(body.ack.map(String));
+        const rest = q.filter((i) => !done.has(i.id));
+        if (rest.length !== q.length) { q = rest; await redis.set(`capq:${who}`, q, CAPTURE_TTL); }
+      }
+      return ok(action === 'capture-status'
+        ? { enabled: true, pending: q.length, lastAt: cfg.lastAt ?? null, createdAt: cfg.createdAt }
+        : { enabled: true, wrappedPrivate: cfg.wrappedPrivate, items: q });
+    }
+
+    case 'capture-disable': {
+      const who = await sessionEmail(redis, body.token);
+      if (!who) return fail(401, 'signed_out', 'Your session ended. Sign in again.');
+      const cfg = await redis.get(`capcfg:${who}`);
+      if (cfg?.th) await redis.del(`cap:${cfg.th}`);
+      await redis.del(`capcfg:${who}`); await redis.del(`capq:${who}`);
+      return ok({ enabled: false });
+    }
+
     case 'delete-account': {
       const who = await sessionEmail(redis, body.token);
       if (!who) return fail(401, 'signed_out', 'Sign in again to delete your account.');
       const user = await redis.get(`user:${who}`);
       if (!user || !isB64(body.authKey, 40, 100) || !(await checkSecret(body.authKey, user.auth))) return fail(401, 'bad_credentials', 'Your password isn’t right.');
+      const cap = await redis.get(`capcfg:${who}`);
+      if (cap?.th) await redis.del(`cap:${cap.th}`);
+      await redis.del(`capcfg:${who}`); await redis.del(`capq:${who}`);
       await redis.del(`user:${who}`); await redis.del(`vault:${who}`); await redis.del(`session:${body.token}`);
       return ok({ deleted: true });
     }
@@ -163,4 +212,44 @@ export async function handleAccount(body, { redis, ip = 'unknown' }) {
     default:
       return fail(400, 'unknown_action', 'Unknown request.');
   }
+}
+
+const sha256 = (s) => createHash('sha256').update(s).digest('hex');
+const CAPTURE_TTL = 30 * 24 * 3600; // unread messages are dropped after 30 days
+export const CAPTURE_MAX_TEXT = 1500;
+export const CAPTURE_MAX_QUEUE = 200;
+
+/** Hybrid encryption to the account's public key: a fresh AES-256-GCM key, itself RSA-OAEP wrapped. */
+function sealTo(publicKeyB64, text) {
+  const key = randomBytes(32), iv = randomBytes(12);
+  const c = createCipheriv('aes-256-gcm', key, iv);
+  const ct = Buffer.concat([c.update(text, 'utf8'), c.final(), c.getAuthTag()]);
+  const pub = createPublicKey({ key: Buffer.from(publicKeyB64, 'base64'), format: 'der', type: 'spki' });
+  const k = publicEncrypt({ key: pub, padding: constants.RSA_PKCS1_OAEP_PADDING, oaepHash: 'sha256' }, key);
+  return { k: b64(k), iv: b64(iv), ct: b64(ct) };
+}
+
+/**
+ * A payment message forwarded from the person's phone (an automation app posts it to
+ * /api/capture?k=<private link>). Stored only in encrypted form; the app collects it next time
+ * it's open. Returns { status, body } like handleAccount.
+ */
+export async function ingestCapture({ link, text, at }, { redis }) {
+  if (!redis) return fail(503, 'not_configured', 'Not set up.');
+  if (typeof link !== 'string' || link.length < 20 || link.length > 80) return fail(404, 'unknown_link', 'This capture link isn’t active.');
+  const th = sha256(link);
+  const owner = await redis.get(`cap:${th}`);
+  if (!owner) return fail(404, 'unknown_link', 'This capture link isn’t active.');
+  if ((await redis.incr(`rl:cap:${th}`, 900)) > 120) return fail(429, 'rate_limited', 'Too many messages. Try again later.');
+  const body = String(text ?? '').replace(/\u0000/g, '').trim().slice(0, CAPTURE_MAX_TEXT);
+  // Nothing with a number in it can't be a payment; don't store chatter.
+  if (!body || !/\d/.test(body)) return ok({ ok: true, stored: false });
+  const cfg = await redis.get(`capcfg:${owner.email}`);
+  if (!cfg) return fail(404, 'unknown_link', 'This capture link isn’t active.');
+  const q = (await redis.get(`capq:${owner.email}`)) ?? [];
+  const when = Number(at) > 0 && Math.abs(Number(at) - Date.now()) < 7 * 86400_000 ? Number(at) : Date.now();
+  q.push({ id: randomBytes(9).toString('base64url'), at: when, ...sealTo(cfg.publicKey, body) });
+  await redis.set(`capq:${owner.email}`, q.slice(-CAPTURE_MAX_QUEUE), CAPTURE_TTL);
+  await redis.set(`capcfg:${owner.email}`, { ...cfg, lastAt: Date.now() });
+  return ok({ ok: true, stored: true });
 }

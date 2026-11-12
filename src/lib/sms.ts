@@ -87,13 +87,61 @@ function merchantOf(s: string): string | undefined {
 const tidy = (v: string) => {
   const vpa = /^([a-z0-9._-]+)@/i.exec(v);
   const base = vpa ? vpa[1].replace(/[._-]/g, ' ').replace(/\d+/g, '').trim() || v : v.replace(/[*_]+/g, ' ');
-  return base.replace(/\b\w/g, (c) => c.toUpperCase()).trim();
+  // Banks shout: "CITY CABS" reads better as "City Cabs". Mixed-case names are left as written.
+  const calm = /[a-z]/.test(base) ? base : base.toLowerCase();
+  return calm.replace(/\b\w/g, (c) => c.toUpperCase()).trim();
 };
 
 interface Template { name: string; match: RegExp; extract: (s: string) => Partial<ParsedAlert> | null }
 
 /** Bank-specific templates. These boost confidence when the structure is fully recognised. */
+const NAME = "([A-Za-z0-9&.'’ _-]{2,50}?)";
+const END = '(?=\\s+(?:on|via|using|from|with|ref|upi|for|successful|successfully|was|is|has)\\b|\\s*[.,;|(]|\\s*$)';
+const APP_PAID = new RegExp(`(?:you(?:['’]ve| have)?\\s+)?(?:paid|sent)\\s+${CUR}\\s?${AMT}\\s+to\\s+${NAME}${END}`, 'i');
+const APP_PAID_ALT = new RegExp(`${CUR}\\s?${AMT}\\s+(?:paid|sent)\\s+(?:successfully\\s+)?to\\s+${NAME}${END}`, 'i');
+const APP_PAYMENT_OF = new RegExp(`payment\\s+of\\s+${CUR}\\s?${AMT}\\s+to\\s+${NAME}${END}`, 'i');
+const APP_RECEIVED = new RegExp(`(?:you(?:['’]ve| have)?\\s+)?received\\s+${CUR}\\s?${AMT}\\s+from\\s+${NAME}${END}`, 'i');
+const APP_RECEIVED_ALT = new RegExp(`${NAME}\\s+(?:paid|sent)\\s+you\\s+${CUR}\\s?${AMT}`, 'i');
+/** Bank UPI alerts that give a bare number: "A/C X1234 debited by 250.0 … trf to RAMESH Refno 4312…". */
+const BARE_DEBIT = new RegExp(`\\b(debited|credited)\\s+(?:by|for|with)\\s+${AMT}\\b(?!\\s?%)`, 'i');
+const TRF_TO = /\b(?:trf|transfer(?:red)?)\s+to\s+([A-Za-z0-9&.' _-]{2,40}?)(?=\s+(?:ref|refno|upi|on)\b|[.,;]|$)/i;
+const TRF_FROM = /\b(?:trf|transfer(?:red)?)\s+from\s+([A-Za-z0-9&.' _-]{2,40}?)(?=\s+(?:ref|refno|upi|on)\b|[.,;]|$)/i;
+
+/** Bank-specific templates. These boost confidence when the structure is fully recognised. */
 export const TEMPLATES: Template[] = [
+  {
+    // Google Pay, PhonePe, Paytm and similar app notifications: "You paid ₹120 to Uber", "₹250 paid to Ramesh Stores".
+    name: 'app-paid',
+    match: /\b(paid|sent|payment of)\b/i,
+    extract: (s) => {
+      const m = APP_PAID.exec(s) ?? APP_PAID_ALT.exec(s) ?? APP_PAYMENT_OF.exec(s);
+      if (!m || APP_RECEIVED_ALT.test(s)) return null;
+      const a = amountAfterCurrency(m[0]);
+      return a ? { amount: a.amount, currency: a.currency, direction: 'debit', merchant: tidy(m[2]), confidence: 0.9 } : null;
+    },
+  },
+  {
+    name: 'app-received',
+    match: /\b(received|paid you|sent you)\b/i,
+    extract: (s) => {
+      const m = APP_RECEIVED.exec(s);
+      const alt = m ? null : APP_RECEIVED_ALT.exec(s);
+      if (!m && !alt) return null;
+      const a = amountAfterCurrency((m ?? alt)![0]);
+      return a ? { amount: a.amount, currency: a.currency, direction: 'credit', merchant: tidy(m ? m[2] : alt![1]), confidence: 0.9 } : null;
+    },
+  },
+  {
+    name: 'bank-upi-bare',
+    match: /\b(debited|credited)\s+(?:by|for|with)\s+[0-9]/i,
+    extract: (s) => {
+      const m = BARE_DEBIT.exec(s);
+      if (!m || !/\b(a\/?c|acct|account|upi)\b/i.test(s)) return null;
+      const debit = /debited/i.test(m[1]);
+      const who = (debit ? TRF_TO : TRF_FROM).exec(s)?.[1];
+      return { amount: toMinor(m[2]), currency: fallbackCurrency, direction: debit ? 'debit' : 'credit', merchant: who ? tidy(who) : undefined, confidence: 0.88 };
+    },
+  },
   {
     name: 'upi-debit',
     match: /(debited|sent).*(UPI|VPA)|UPI.*(debited|sent)/i,
@@ -129,14 +177,15 @@ export const TEMPLATES: Template[] = [
 ];
 
 /** Messages that look financial but are not transactions (OTPs, offers, due reminders). */
-const NOISE = /\b(OTP|one time password|verification code|offer|cashback upto|apply now|loan approved|pre-approved|is due|due on|min(?:imum)? amount due|will be debited|requested|request of|declined|failed)\b/i;
+const NOISE = /\b(OTP|one time password|verification code|offer|cashback upto|apply now|loan approved|pre-approved|is due|due on|min(?:imum)? amount due|will be debited|requested|request of|has requested|collect request|declined|failed|unsuccessful|scratch card|you won|reward(?:s)? (?:of|worth)|reminder)\b/i;
 
 /** `homeCurrency` resolves ambiguous symbols like a bare "$" (USD vs CAD vs AUD…). */
 export function parseAlert(raw: string, homeCurrency = 'USD'): ParsedAlert | null {
   fallbackCurrency = homeCurrency;
   const s = raw.replace(/\s+/g, ' ').trim();
   if (!s || NOISE.test(s)) return null;
-  const base = amountAfterCurrency(s);
+  const bare = BARE_DEBIT.exec(s);
+  const base = amountAfterCurrency(s) ?? (bare ? { amount: toMinor(bare[2]), currency: homeCurrency, index: bare.index } : null);
   if (!base) return null;
 
   let result: Partial<ParsedAlert> | null = null;

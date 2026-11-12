@@ -2,16 +2,16 @@ import type { Category, MerchantRule, Transaction } from '../db/types';
 
 /** Built-in keyword hints, used only when the user has not taught a rule yet. */
 const KEYWORDS: Record<string, string[]> = {
-  groceries: ['grocery', 'groceries', 'supermarket', 'whole foods', 'tesco', 'aldi', 'lidl', 'walmart', 'costco', 'bigbasket', 'trader joe', 'safeway', 'kroger', 'carrefour', 'dmart', 'blinkit'],
-  dining: ['restaurant', 'cafe', 'coffee', 'starbucks', 'pizza', 'burger', 'dining', 'swiggy', 'zomato', 'uber eats', 'doordash', 'deliveroo', 'mcdonald', 'kfc', 'lunch', 'dinner'],
-  transport: ['uber', 'lyft', 'ola', 'taxi', 'metro', 'train', 'bus', 'fuel', 'petrol', 'gas station', 'shell', 'parking', 'toll'],
-  shopping: ['amazon', 'flipkart', 'target', 'ikea', 'zara', 'h&m', 'mall', 'store', 'shop'],
-  utilities: ['electric', 'electricity', 'water', 'gas bill', 'internet', 'broadband', 'mobile', 'phone bill', 'airtel', 'jio', 'verizon', 'comcast'],
-  subscriptions: ['netflix', 'spotify', 'prime', 'disney', 'youtube', 'icloud', 'apple.com', 'adobe', 'hotstar', 'chatgpt'],
-  health: ['pharmacy', 'chemist', 'doctor', 'clinic', 'hospital', 'dental', 'medic', 'cvs', 'walgreens', 'apollo'],
+  groceries: ['grocery', 'groceries', 'supermarket', 'whole foods', 'tesco', 'aldi', 'lidl', 'walmart', 'costco', 'bigbasket', 'trader joe', 'safeway', 'kroger', 'carrefour', 'dmart', 'blinkit', ' mart', 'kirana', 'zepto', 'instamart', 'reliance fresh', 'provision', 'vegetable', 'fruits', 'dairy', 'milk', 'jiomart', 'bazaar'],
+  dining: ['restaurant', 'cafe', 'coffee', 'starbucks', 'pizza', 'burger', 'dining', 'swiggy', 'zomato', 'uber eats', 'doordash', 'deliveroo', 'mcdonald', 'kfc', 'lunch', 'dinner', 'chai', 'tea stall', 'bakery', 'domino', 'biryani', 'sweets', 'juice', 'tiffin', 'canteen', 'dhaba', 'eatery', 'food'],
+  transport: ['uber', 'lyft', 'ola', 'taxi', 'metro', 'train', 'bus', 'fuel', 'petrol', 'gas station', 'shell', 'parking', 'toll', 'cab', 'rapido', 'irctc', 'redbus', 'indian oil', 'hpcl', 'bpcl', 'bharat petroleum', 'fastag', 'auto rickshaw', 'namma yatri', 'railway'],
+  shopping: ['amazon', 'flipkart', 'target', 'ikea', 'zara', 'h&m', 'mall', 'store', 'shop', 'myntra', 'ajio', 'meesho', 'nykaa', 'decathlon', 'croma', 'reliance digital', 'lifestyle', 'textile', 'garments'],
+  utilities: ['electric', 'electricity', 'water', 'gas bill', 'internet', 'broadband', 'mobile', 'phone bill', 'airtel', 'jio', 'verizon', 'comcast', 'recharge', 'bsnl', 'fibernet', 'tata play', 'dth', 'bescom', 'tneb', 'tangedco', 'indane', 'hp gas', 'bharat gas', 'vodafone'],
+  subscriptions: ['netflix', 'spotify', 'prime', 'disney', 'youtube', 'icloud', 'apple.com', 'adobe', 'hotstar', 'chatgpt', 'zee5', 'sonyliv', 'jiocinema', 'jiohotstar', 'google one'],
+  health: ['pharmacy', 'chemist', 'doctor', 'clinic', 'hospital', 'dental', 'medic', 'cvs', 'walgreens', 'apollo', 'medical', 'medplus', 'pharma', '1mg', 'netmeds', 'diagnostic', 'pharmeasy'],
   housing: ['rent', 'landlord', 'mortgage', 'maintenance', 'hoa'],
   education: ['school', 'tuition', 'college', 'university', 'course', 'udemy', 'books'],
-  entertainment: ['movie', 'cinema', 'concert', 'game', 'steam', 'playstation', 'bookmyshow'],
+  entertainment: ['movie', 'cinema', 'concert', 'game', 'steam', 'playstation', 'bookmyshow', 'pvr', 'inox'],
   travel: ['airline', 'flight', 'hotel', 'airbnb', 'booking.com', 'expedia', 'makemytrip'],
   salary: ['salary', 'payroll', 'wages'],
 };

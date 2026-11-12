@@ -31,6 +31,10 @@ Tandem is an installable web app: one codebase that runs full screen from the ho
 - **Restore:** a fresh or wiped app offers "Restore from Google Drive" and "Pick a backup file" on its first screen. A device with older data than Drive shows an **Update** banner.
 - Empty or not-yet-set-up households are never uploaded, so a wiped phone can't overwrite a good backup.
 
+## Automatic payment capture
+
+Tandem can't connect to Google Pay, PhonePe or a bank directly (they don't allow it), but it reads the message each payment produces. An automation app on the phone can forward payment notifications and bank SMS in the background; you can also share a message into Tandem or paste one. Set it up in Settings → Automatic payment capture. Details and privacy: `docs/AUTO_CAPTURE.md`.
+
 ## Memory, sign-in and sync
 
 - **Tandem account (email + password):** create an account on the welcome screen or in Settings → Account & unlock. Your household syncs to every phone and computer you sign in on, end-to-end encrypted. Keep the recovery key you're shown at sign-up: there's no email password reset. Needs the one-time setup in `docs/ACCOUNTS_SETUP.md`.

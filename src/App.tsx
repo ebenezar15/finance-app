@@ -5,6 +5,7 @@ import { LockScreen, useAutoLock } from './components/Lock';
 import { QuickAdd } from './components/QuickAdd';
 import { CommandPalette } from './components/CommandPalette';
 import { ConfettiHost } from './components/Confetti';
+import { captureIncoming, startAutoCapture } from './lib/autoCapture';
 import { AccountPrompt, useAccountPrompt } from './components/AccountPrompt';
 import { ConfirmHost, Toasts } from './components/ui';
 import { purgeTrash } from './db/db';
@@ -99,6 +100,18 @@ export default function App() {
   useEffect(() => {
     if (params.get('add') === '1') { openQuickAdd(); nav('/', { replace: true }); }
   }, [params, openQuickAdd, nav]);
+
+  // Payments forwarded by the phone's automation app are collected while the app is open.
+  useEffect(() => { if (profile?.onboarded && !locked) startAutoCapture(); }, [profile?.onboarded, locked]);
+  // A payment message shared into Tandem (Android share sheet) or carried on a link (/?capture=…).
+  useEffect(() => {
+    if (!profile?.onboarded || locked) return;
+    const shared = [params.get('share-title'), params.get('share-text'), params.get('share-url')].filter(Boolean).join(' ');
+    const text = params.get('capture') || shared;
+    if (!text) return;
+    nav('/', { replace: true });
+    captureIncoming(text, params.get('capture') ? 'sms' : 'share').catch(console.error);
+  }, [params, profile?.onboarded, locked, nav]);
 
   if (!profile || (!syncReady && !profile.onboarded)) return <div className="min-h-screen bg-bg grid place-items-center text-sm text-muted">Loading your household…</div>;
   // The setup screen also needs confirmations and toasts (e.g. restoring a backup on a wiped phone).

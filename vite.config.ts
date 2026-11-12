@@ -39,6 +39,8 @@ export default defineConfig(({ mode }) => {
           { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
           { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
         ],
+        // Android share sheet: share a payment SMS or message from any app straight into Tandem.
+        share_target: { action: './', method: 'GET', params: { title: 'share-title', text: 'share-text', url: 'share-url' } },
         shortcuts: [{ name: 'Add expense', short_name: 'Add', url: './?add=1', icons: [{ src: 'icon-192.png', sizes: '192x192' }] }],
       },
       workbox: { clientsClaim: true, skipWaiting: true, cleanupOutdatedCaches: true, globPatterns: ['**/*.{js,mjs,css,html,svg,png,woff,woff2}'], maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, navigateFallback: 'index.html', navigateFallbackDenylist: [/^\/api\//] },

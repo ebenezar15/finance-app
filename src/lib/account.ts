@@ -211,3 +211,56 @@ export async function pushVault(json: string, meta: { updatedAt: number; device:
     throw e;
   }
 }
+
+/* ───────────── Automatic payment capture (messages forwarded from the phone) ───────────── */
+
+/**
+ * Turns capture on (or replaces the link): makes a key pair on this phone, hands the server the
+ * public half and the private half wrapped by the account's data key, and gets back the private
+ * link the phone's automation app posts payment messages to. The server encrypts every message
+ * to the public key on arrival, so it can't read what it stores.
+ */
+export async function captureEnable(): Promise<string> {
+  const a = await getAccount();
+  if (!a) throw new AccountError('signed_out', 'Sign in to your Tandem account first.');
+  const pair = await crypto.subtle.generateKey({ name: 'RSA-OAEP', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, true, ['encrypt', 'decrypt']);
+  const publicKey = b64(new Uint8Array(await crypto.subtle.exportKey('spki', pair.publicKey)));
+  const wrappedPrivate = await wrap(await dataKeyOf(a), new Uint8Array(await crypto.subtle.exportKey('pkcs8', pair.privateKey)));
+  const r = await call<{ link: string }>({ action: 'capture-enable', token: a.token, publicKey, wrappedPrivate });
+  return r.link;
+}
+
+export async function captureDisable() {
+  const a = await getAccount();
+  if (a) await call({ action: 'capture-disable', token: a.token });
+}
+
+export async function captureStatus(): Promise<{ enabled: boolean; pending?: number; lastAt?: number | null }> {
+  const a = await getAccount();
+  if (!a) return { enabled: false };
+  return call({ action: 'capture-status', token: a.token });
+}
+
+export interface CapturedMessage { id: string; at: number; text: string }
+interface SealedMessage { id: string; at: number; k: string; iv: string; ct: string }
+
+/** Collects forwarded messages, decrypted. Pass the ids already handled as `ack` so the server drops them. */
+export async function capturePull(ack: string[] = []): Promise<{ enabled: boolean; items: CapturedMessage[] }> {
+  const a = await getAccount();
+  if (!a) return { enabled: false, items: [] };
+  const r = await call<{ enabled: boolean; wrappedPrivate?: Wrapped; items: SealedMessage[] }>({ action: 'capture-pull', token: a.token, ack });
+  if (!r.enabled || !r.items?.length || !r.wrappedPrivate) return { enabled: !!r.enabled, items: [] };
+  const priv = await crypto.subtle.importKey('pkcs8', (await unwrap(await dataKeyOf(a), r.wrappedPrivate)) as BufferSource, { name: 'RSA-OAEP', hash: 'SHA-256' }, false, ['decrypt']);
+  const items: CapturedMessage[] = [];
+  for (const m of r.items) {
+    try {
+      const raw = new Uint8Array(await crypto.subtle.decrypt({ name: 'RSA-OAEP' }, priv, unb64(m.k) as BufferSource));
+      const key = await crypto.subtle.importKey('raw', raw as BufferSource, 'AES-GCM', false, ['decrypt']);
+      const text = dec.decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(m.iv) as BufferSource }, key, unb64(m.ct) as BufferSource));
+      items.push({ id: m.id, at: m.at, text });
+    } catch {
+      items.push({ id: m.id, at: m.at, text: '' }); // unreadable (old key): acknowledged and dropped
+    }
+  }
+  return { enabled: true, items };
+}
