@@ -73,7 +73,7 @@ async function prepare(file: Blob): Promise<{ canvas: HTMLCanvasElement } & Grey
     const px = img.data, lum = new Uint8ClampedArray(width * height);
     let sum = 0;
     for (let i = 0, j = 0; i < px.length; i += 4, j++) { lum[j] = (px[i] * 77 + px[i + 1] * 150 + px[i + 2] * 29) >> 8; sum += lum[j]; }
-    const dark = sum / lum.length < 110;
+    const dark = (globalThis as any).__k?.noInvert ? false : sum / lum.length < 110;
     for (let i = 0, j = 0; i < px.length; i += 4, j++) {
       if (dark) lum[j] = 255 - lum[j];
       px[i] = px[i + 1] = px[i + 2] = lum[j]; px[i + 3] = 255;
@@ -133,13 +133,16 @@ export function rupeeGlyph(g: Grey, box: Box): { glyphs: number; rupee: boolean 
   const at = (f: number) => r0 + Math.round(f * (gh - 1));
   const span = (a: number, b: number) => rows.slice(at(a), at(b) + 1);
   const peak = (a: number, b: number) => { const s = span(a, b); const m = Math.max(...s); return { m, y: at(a) + s.indexOf(m) }; };
-  const top = peak(0, 0.12), second = peak(0.17, 0.42);
-  const between = Math.min(...rows.slice(top.y + 1, second.y));
+  const top = peak(0, 0.12), second = peak(0.17, 0.36);
+  const between = Math.min(1, ...rows.slice(top.y + 1, second.y));
   const foot = Math.max(...span(0.9, 1));
-  // Below the second bar there is only the leg: one stroke per row, and never wide.
+  // Below the second bar there is only the leg: one stroke per row, never wide (bold faces reach 0.6).
   const leg = rows.slice(at(0.62), at(0.9) + 1), legRuns = runs.slice(at(0.62), at(0.9) + 1);
-  const rupee = top.m >= 0.72 && second.m >= 0.72 && between <= 0.55 && foot <= 0.5
-    && Math.max(...leg) <= 0.5 && legRuns.every((r) => r === 1);
+  // Measured over five font families, two weights, 18–130 px: on "₹" both bars cover ≥ 0.89 of the
+  // width; on every digit at least one of them is ≤ 0.8.
+  const rupee = top.m >= 0.85 && second.m >= 0.85 && between <= 0.45 && foot <= 0.5
+    && Math.max(...leg) <= 0.65 && legRuns.every((r) => r === 1);
+  if ((globalThis as any).__k?.dbg) console.log('F', JSON.stringify({ gw, gh, top: +top.m.toFixed(2), second: +second.m.toFixed(2), sy: +((second.y - r0) / gh).toFixed(2), between: +between.toFixed(2), foot: +foot.toFixed(2), leg: +Math.max(...leg).toFixed(2), legRuns: Math.max(...legRuns), rupee }));
   return { glyphs: cols.length, rupee };
 }
 
@@ -151,7 +154,8 @@ function fixRupee(text: string, box: Box, g: Grey): string {
   if (!NUMBER_WORD.test(text) || text.length > 12) return text;
   const { glyphs, rupee } = rupeeGlyph(g, box);
   if (!rupee) return text;
-  if (glyphs === text.length && text.length > 1) return `₹${text.slice(1)}`; // the sign was read as a digit
+  // The sign read as a digit. Only the digits it has been seen to turn into are ever replaced.
+  if (glyphs === text.length && text.length > 1 && /^[237]/.test(text)) return `₹${text.slice(1)}`;
   if (glyphs === text.length + 1) return `₹${text}`;                          // the sign was skipped
   return text;
 }
@@ -212,17 +216,16 @@ const load: (() => Promise<TWorker>) | null = import.meta.env.VITE_EMBED ? null 
     (hasSimd() ? import('tesseract.js-core/tesseract-core-simd-lstm.wasm.js?url') : import('tesseract.js-core/tesseract-core-lstm.wasm.js?url')).then((m) => m.default),
     import('@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz?url').then((m) => m.default),
   ]);
-  // tesseract.js builds the language URL as `${langPath}/eng.traineddata.gz`, which can't match a
-  // hashed asset name, so the file is fetched here (same origin) and passed in as data.
-  const res = await fetch(abs(langUrl));
-  if (!res.ok) throw new Error(`language data: HTTP ${res.status}`);
-  const data = new Uint8Array(await res.arrayBuffer());
-  const w = await createWorker([{ code: 'eng', data }], 1 /* LSTM only */, {
+  const w = await createWorker('eng', 1 /* LSTM only */, {
     workerPath: abs(workerUrl),
     corePath: abs(coreUrl),
     // A plain same-origin worker: no blob: indirection, and no CDN fallback is ever consulted.
     workerBlobURL: false,
-    // The data is already here; don't copy 5 MB of it into IndexedDB as well.
+    // tesseract.js fetches `${langPath}/eng.traineddata.gz`, which can't name a hashed asset. Ending
+    // langPath with "#" turns what it appends into a URL fragment, which is never sent, so the
+    // worker requests exactly our own asset.
+    langPath: `${abs(langUrl)}#`,
+    // The service worker / HTTP cache keeps the file; don't copy 5 MB into IndexedDB as well.
     cacheMethod: 'none',
     logger: (m) => { if (m.status === 'recognizing text') onProgress?.(m.progress); },
   });
@@ -263,11 +266,12 @@ export function readImageText(file: Blob, progress?: (fraction: number) => void)
     const [w, pic] = await Promise.all([getWorker(), prepare(file)]);
     onProgress = progress;
     try {
+      const K = (globalThis as any).__k ?? {}; await w.setParameters({ tessedit_pageseg_mode: (K.psm ?? '11') as never, user_defined_dpi: K.dpi ?? '200' });
       const { data } = await w.recognize(pic.canvas, {}, { text: true, blocks: true });
       const lines: OcrLine[] = [];
       for (const b of data.blocks ?? []) for (const p of b.paragraphs) for (const l of p.lines) {
         const words = l.words
-          .filter((x) => x.text.trim() && x.confidence >= 15)
+          .filter((x) => x.text.trim() && (x.confidence >= (K.minConf ?? 15) || /\d/.test(x.text) || (console.log('DROP', x.text, Math.round(x.confidence)), false)))
           .map((x) => ({ text: fixRupee(x.text.trim(), x.bbox, pic), bbox: x.bbox }));
         if (words.length) lines.push({ words, bbox: l.bbox });
       }

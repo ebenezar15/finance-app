@@ -252,7 +252,7 @@ function Dashboard({ data, profile }: { data: Data; profile: Profile }) {
             <p className="font-bold">Moving from the CashBook app?</p>
             <p className="sub">Export each book as PDF or Excel and import it here. Entries, categories, payment modes and balances come across.</p>
           </div>
-          <Link to="/inbox" className="btn-primary">Import from CashBook</Link>
+          <Link to="/inbox#cashbook" className="btn-primary">Import from CashBook</Link>
         </section>
       )}
 

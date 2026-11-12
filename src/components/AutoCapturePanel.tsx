@@ -47,7 +47,7 @@ export function AutoCapturePanel() {
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
         <Way icon={<Zap size={18} />} title="Automatic" body="An automation app on your phone forwards payment notifications and bank SMS in the background. Set up once, below." />
         <Way icon={<Share2 size={18} />} title="Share to Tandem" body="On Android, with Tandem installed: open the SMS or message, tap Share and choose Tandem." />
-        <Way icon={<Smartphone size={18} />} title="Paste a message" body={<>Copy a payment message and paste it in <Link to="/inbox" className="font-semibold text-primary underline">Inbox &amp; import</Link>.</>} />
+        <Way icon={<Smartphone size={18} />} title="Screenshot or paste" body={<>Read a payment screenshot, or paste a message, in <Link to="/inbox" className="font-semibold text-primary underline">Inbox &amp; import</Link>.</>} />
       </div>
 
       <div className="mt-5 pt-4 border-t border-line/70">

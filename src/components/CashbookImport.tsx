@@ -151,7 +151,7 @@ export function CashbookImport({ data }: { data: Data }) {
   const finalHere = (opening ?? 0) + sums.net;
 
   return (
-    <Panel title={<span className="flex items-center gap-2" id="cashbook"><BookOpen size={18} className="text-primary" /> Import from CashBook</span>}>
+    <Panel title={<span className="flex items-center gap-2 scroll-mt-24" id="cashbook"><BookOpen size={18} className="text-primary" /> Import from CashBook</span>}>
       {!rows && !done && (
         <div className="space-y-3">
           <ol className="text-sm space-y-1.5 list-decimal pl-5">

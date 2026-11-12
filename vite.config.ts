@@ -43,7 +43,18 @@ export default defineConfig(({ mode }) => {
         share_target: { action: './', method: 'GET', params: { title: 'share-title', text: 'share-text', url: 'share-url' } },
         shortcuts: [{ name: 'Add expense', short_name: 'Add', url: './?add=1', icons: [{ src: 'icon-192.png', sizes: '192x192' }] }],
       },
-      workbox: { clientsClaim: true, skipWaiting: true, cleanupOutdatedCaches: true, globPatterns: ['**/*.{js,mjs,css,html,svg,png,woff,woff2}'], maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, navigateFallback: 'index.html', navigateFallbackDenylist: [/^\/api\//] },
+      workbox: {
+        clientsClaim: true, skipWaiting: true, cleanupOutdatedCaches: true, globPatterns: ['**/*.{js,mjs,css,html,svg,png,woff,woff2}'],
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, navigateFallback: 'index.html', navigateFallbackDenylist: [/^\/api\//],
+        // The screenshot reader's engine and language data (about 7 MB) aren't downloaded at install.
+        // They're fetched the first time a screenshot is read, then kept so it works offline afterwards.
+        globIgnores: ['**/tesseract-core*', '**/eng.traineddata*', '**/worker.min-*'],
+        runtimeCaching: [{
+          urlPattern: /\/assets\/(?:tesseract-core|eng\.traineddata|worker\.min-)[^/]*$/,
+          handler: 'CacheFirst',
+          options: { cacheName: 'screenshot-reader', expiration: { maxEntries: 8 }, cacheableResponse: { statuses: [200] } },
+        }],
+      },
     }),
   ],
   build: embed

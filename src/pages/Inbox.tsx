@@ -8,6 +8,7 @@ import { suggestCategory, type Suggestion } from '../lib/categorize';
 import { guessColumns, parseCSV, parseDate, parseOFX, type ColumnMap } from '../lib/csv';
 import { DAY, isoDate, relativeDay } from '../lib/dates';
 import { toMinor } from '../lib/money';
+import { useLocation } from 'react-router-dom';
 import { REVIEW_THRESHOLD, parseAlert, type ParsedAlert } from '../lib/sms';
 import { parseVoice } from '../lib/voice';
 import { useUI } from '../store/ui';
@@ -15,20 +16,29 @@ import { CashbookImport } from '../components/CashbookImport';
 
 export default function Inbox() {
   const data = useData();
+  const { hash } = useLocation();
+  const ready = !!data;
+  // Links such as "Import from CashBook" land on their panel, not the top of the page.
+  useEffect(() => {
+    if (!ready || !hash) return;
+    const t = window.setTimeout(() => document.getElementById(hash.slice(1))?.scrollIntoView({ block: 'start' }), 350);
+    return () => window.clearTimeout(t);
+  }, [ready, hash]);
   if (!data) return null;
   return (
     <div className="space-y-6">
       <div className="pt-2">
         <h1 className="h1">Inbox & import</h1>
-        <p className="sub max-w-2xl">Check entries captured automatically, and bring in transactions from bank alerts, statements, your voice or a receipt. Everything is read on this device.</p>
+        <p className="sub max-w-2xl">Check payments captured automatically, read a payment screenshot or message, and bring in statements or your CashBook. Everything is read on this device.</p>
       </div>
-      <CashbookImport data={data} />
+      {/* What needs a look comes first, then the quick ways to add a payment, then the bigger imports. */}
       <div className="grid lg:grid-cols-2 gap-6 items-start">
-        <ReviewInbox data={data} />
-        <PasteAlert data={data} />
-        <div className="lg:col-span-2"><StatementImport data={data} /></div>
-        <VoiceEntry data={data} />
+        <div className="lg:col-span-2 min-w-0"><ReviewInbox data={data} /></div>
         <ReceiptScan />
+        <PasteAlert data={data} />
+        <div className="lg:col-span-2 min-w-0"><CashbookImport data={data} /></div>
+        <div className="lg:col-span-2 min-w-0"><StatementImport data={data} /></div>
+        <VoiceEntry data={data} />
       </div>
     </div>
   );
@@ -649,31 +659,199 @@ function VoiceEntry({ data }: { data: Data }) {
 
 /* ───────────────────────── Receipt ───────────────────────── */
 
+// Imports for ReceiptScan only, kept beside it. `ocr` is a thin wrapper: the OCR engine itself is
+// fetched the first time a picture is read.
+import { ImagePlus } from 'lucide-react';
+import { capturePayments, captureSummary, type CaptureResult } from '../lib/capture';
+import { ocrAvailable, readImageText } from '../lib/ocr';
+import { readReceipt, type ReceiptRead } from '../lib/receiptText';
+
+interface Shot {
+  id: number;
+  name: string;
+  url: string;
+  state: 'waiting' | 'reading' | 'read' | 'unreadable' | 'failed' | 'saved';
+  progress: number;
+  read?: ReceiptRead;
+  /** Minor units, from the same parser the capture pipeline uses. */
+  amount?: number;
+  payee?: string;
+  error?: string;
+  outcome?: CaptureResult['status'];
+}
+
+const OUTCOME: Record<CaptureResult['status'], string> = {
+  added: 'Added',
+  review: 'In your review inbox to check',
+  duplicate: 'Already recorded, so not added again',
+  ignored: 'Not added',
+};
+
+let shotId = 0;
+
 function ReceiptScan() {
-  const [url, setUrl] = useState<string | null>(null);
-  const [name, setName] = useState('');
-  useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);
+  const fmt = useFmt();
+  const currency = useProfile()?.currency ?? 'USD';
+  const toast = useUI((s) => s.toast);
+  const canRead = ocrAvailable();
+  const [shots, setShots] = useState<Shot[]>([]);
+  const [saving, setSaving] = useState(false);
+  const run = useRef(0);
+  const urls = useRef<string[]>([]);
+  useEffect(() => () => { run.current++; urls.current.forEach((u) => URL.revokeObjectURL(u)); }, []);
+
+  const patch = (id: number, p: Partial<Shot>) => setShots((all) => all.map((s) => (s.id === id ? { ...s, ...p } : s)));
+
+  async function choose(list: FileList | null) {
+    const files = Array.from(list ?? []).filter((f) => f.type.startsWith('image/') || !f.type);
+    if (!files.length) return;
+    const mine = ++run.current;
+    urls.current.forEach((u) => URL.revokeObjectURL(u));
+    const next: Shot[] = files.map((f) => ({ id: ++shotId, name: f.name, url: URL.createObjectURL(f), state: canRead ? 'waiting' : 'unreadable', progress: 0 }));
+    urls.current = next.map((s) => s.url);
+    setShots(next);
+    if (!canRead) return;
+    // One after another: a phone has the memory for one picture at a time.
+    for (let i = 0; i < files.length; i++) {
+      if (run.current !== mine) return;
+      const id = next[i].id;
+      patch(id, { state: 'reading' });
+      try {
+        const text = await readImageText(files[i], (p) => { if (run.current === mine) patch(id, { progress: p }); });
+        if (run.current !== mine) return;
+        const read = readReceipt(text);
+        const parsed = read ? parseAlert(read.message, currency) : null;
+        if (read && parsed) patch(id, { state: 'read', read, amount: parsed.amount, payee: parsed.merchant });
+        else patch(id, { state: 'unreadable' });
+      } catch (e) {
+        if (run.current !== mine) return;
+        patch(id, { state: 'failed', error: e instanceof Error ? e.message : 'This picture couldn’t be read.' });
+      }
+    }
+  }
+
+  async function add(targets: Shot[]) {
+    if (saving || !targets.length) return;
+    setSaving(true);
+    const results: CaptureResult[] = [];
+    try {
+      for (const s of targets) {
+        const r = await capturePayments(s.read!.message, { source: 'ocr' });
+        results.push(...r);
+        patch(s.id, { state: 'saved', outcome: r[0]?.status ?? 'ignored' });
+      }
+      toast(captureSummary(results, fmt));
+    } catch {
+      toast('That couldn’t be saved. Nothing else was changed; try again.');
+    } finally { setSaving(false); }
+  }
+
+  function edit(s: Shot) {
+    const r = s.read!;
+    // dd-mm-yyyy from the screenshot → the entry sheet's yyyy-mm-dd, when it is a real, recent, past day.
+    const [d, m, y] = (r.date ?? '').split('-');
+    const iso = r.date ? `${y}-${m}-${d}` : '';
+    const at = iso ? new Date(`${iso}T12:00:00`).getTime() : NaN;
+    const date = at <= Date.now() && Date.now() - at < 45 * DAY ? iso : undefined;
+    useUI.getState().openQuickAdd(r.direction === 'debit' ? 'expense' : 'income', { amount: s.amount, payee: s.payee, source: 'ocr', notes: r.message, ...(date ? { date } : {}) });
+  }
+  const enter = () => useUI.getState().openQuickAdd('expense', { source: 'ocr', notes: 'From receipt' });
+
+  const solo = shots.length === 1;
+  const reading = shots.some((s) => s.state === 'waiting' || s.state === 'reading');
+  const ready = shots.filter((s) => s.state === 'read');
+  const done = shots.filter((s) => s.state !== 'waiting' && s.state !== 'reading').length;
+  const understood = shots.filter((s) => s.state === 'read' || s.state === 'saved').length;
+  const pick = 'btn-soft cursor-pointer focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary';
 
   return (
-    <Panel title="Scan a receipt">
-      <p className="sub mb-3">Take a photo or choose an image. Receipts are read on this device and never uploaded. Automatic reading of totals is coming; for now enter the total.</p>
-      <label htmlFor="receipt-file" className="label">Receipt image</label>
-      <input id="receipt-file" type="file" accept="image/*" capture="environment"
-        className="block w-full text-sm file:btn-soft file:mr-3 file:border-0 file:h-10 file:cursor-pointer"
-        onChange={(e) => { const f = e.target.files?.[0]; setName(f?.name ?? ''); setUrl(f ? URL.createObjectURL(f) : null); }} />
-      {url ? (
-        <div className="mt-4 space-y-3">
-          <img src={url} alt={`Receipt preview${name ? `: ${name}` : ''}`} className="max-h-72 w-full object-contain rounded-2xl bg-sunk" />
-          <div className="flex justify-end">
-            <button className="btn-primary" onClick={() => useUI.getState().openQuickAdd('expense', { source: 'ocr', notes: 'From receipt' })}>Enter details</button>
-          </div>
-        </div>
-      ) : (
+    <Panel title="Read a payment screenshot">
+      <p className="sub mb-3">
+        {canRead
+          ? 'Choose a screenshot of a payment from Google Pay, PhonePe, Paytm or your bank app, and Tandem reads the amount and who it went to. The picture is read on this phone and never uploaded.'
+          : 'Choose a picture of a receipt to keep in view while you enter it. It stays on this device and is never uploaded. Reading screenshots automatically isn’t available in this version.'}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <label className={pick}>
+          <ImagePlus size={18} aria-hidden />
+          <span>{canRead ? 'Choose screenshots' : 'Choose a picture'}</span>
+          <input id="receipt-file" type="file" accept="image/*" multiple={canRead} className="sr-only"
+            onChange={(e) => { void choose(e.target.files); e.target.value = ''; }} />
+        </label>
+        <label className={pick}>
+          <Camera size={18} aria-hidden />
+          <span>Take a photo</span>
+          <input id="receipt-camera" type="file" accept="image/*" capture="environment" className="sr-only"
+            onChange={(e) => { void choose(e.target.files); e.target.value = ''; }} />
+        </label>
+      </div>
+
+      {!shots.length && (
         <div className="mt-4 rounded-2xl border border-dashed border-line p-6 text-center text-muted">
           <Camera size={22} className="mx-auto mb-2" aria-hidden />
-          <p className="text-sm">Your receipt preview appears here.</p>
+          <p className="text-sm">{canRead ? 'What Tandem reads from your screenshot appears here.' : 'Your receipt preview appears here.'}</p>
         </div>
       )}
+
+      {shots.length > 1 && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-semibold" role="status">
+            {reading ? `Reading screenshot ${Math.min(done + 1, shots.length)} of ${shots.length}…` : `Read a payment in ${understood} of ${shots.length} screenshots.`}
+          </p>
+          {ready.length > 1 && <button className="btn-primary" disabled={saving || reading} onClick={() => void add(ready)}>Add all {ready.length}</button>}
+        </div>
+      )}
+
+      <ul className="mt-4 space-y-3">
+        {shots.map((s) => (
+          <li key={s.id} className={solo ? 'space-y-3' : 'flex gap-3 rounded-2xl border border-line/80 p-3'} data-receipt={s.state}>
+            <img src={s.url} alt={`Screenshot${s.name ? `: ${s.name}` : ''}`}
+              className={solo ? 'max-h-72 w-full object-contain rounded-2xl bg-sunk' : 'h-20 w-14 shrink-0 object-cover object-top rounded-lg bg-sunk'} />
+            <div className="min-w-0 flex-1">
+              {s.state === 'waiting' && <p className="text-sm text-muted">Waiting its turn…</p>}
+              {s.state === 'reading' && (
+                <div role="status">
+                  <p className="text-sm font-semibold">Reading the screenshot…</p>
+                  <p className="text-xs text-muted mt-0.5">This can take several seconds{s.progress > 0 ? ` · ${Math.round(s.progress * 100)}%` : ''}. The first one takes longest.</p>
+                </div>
+              )}
+              {(s.state === 'read' || s.state === 'saved') && s.read && (
+                <div>
+                  <p className="text-xs font-semibold text-muted">{s.read.direction === 'debit' ? 'Paid' : 'Received'}</p>
+                  <p className="font-display text-2xl font-bold num break-words" data-receipt-amount>{fmt(s.amount ?? 0)}</p>
+                  <p className="text-sm break-words" data-receipt-payee>
+                    {s.payee ? <>{s.read.direction === 'debit' ? 'to' : 'from'} <span className="font-semibold">{s.payee}</span></> : <span className="text-muted">Couldn’t read who it was {s.read.direction === 'debit' ? 'paid to' : 'from'}</span>}
+                  </p>
+                  {(s.read.date || s.read.refNo) && (
+                    <p className="text-xs text-muted mt-0.5 break-words">{[s.read.date && relativeDay(`${s.read.date.split('-').reverse().join('-')}T12:00:00`), s.read.refNo && `Ref ${s.read.refNo}`].filter(Boolean).join(' · ')}</p>
+                  )}
+                  {s.state === 'read' && s.read.unsure && <p className="text-xs font-semibold text-warn mt-1.5">The rupee sign wasn’t clear. Check the amount against the screenshot.</p>}
+                  {s.state === 'saved'
+                    ? <p className="text-sm font-semibold text-primary mt-2" role="status">{OUTCOME[s.outcome ?? 'ignored']}</p>
+                    : (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button className="btn-primary" disabled={saving} onClick={() => void add([s])}>Add it</button>
+                        <button className="btn-soft" disabled={saving} onClick={() => edit(s)}>Edit first</button>
+                      </div>
+                    )}
+                </div>
+              )}
+              {(s.state === 'unreadable' || s.state === 'failed') && (
+                <div>
+                  {canRead && (
+                    <p className="text-sm" role="status">
+                      {s.state === 'failed' ? s.error : 'Couldn’t read a completed payment in this picture. It works best with the full “payment successful” screen.'}
+                    </p>
+                  )}
+                  <div className={`flex ${canRead ? 'mt-3' : 'justify-end'}`}>
+                    <button className={canRead ? 'btn-soft' : 'btn-primary'} onClick={enter}>Enter details</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
     </Panel>
   );
 }

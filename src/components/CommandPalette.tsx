@@ -146,7 +146,7 @@ function PaletteBody({ view, setView, onRan }: { view: View; setView: (v: View) 
       list.push(
         { id: 'add-budget', group: 'Actions', label: 'Add budget', keywords: ['budget', 'limit', 'envelope'], icon: <Wallet size={16} />, run: go('/budgets') },
         { id: 'add-goal', group: 'Actions', label: 'Add goal', keywords: ['goal', 'save', 'savings'], icon: <Target size={16} />, run: go('/goals') },
-        { id: 'import-cashbook', group: 'Actions', label: 'Import from CashBook', keywords: ['import', 'cashbook', 'csv', 'file', 'inbox'], icon: <Import size={16} />, run: go('/inbox') },
+        { id: 'import-cashbook', group: 'Actions', label: 'Import from CashBook', keywords: ['import', 'cashbook', 'csv', 'file', 'inbox'], icon: <Import size={16} />, run: go('/inbox#cashbook') },
         { id: 'backup', group: 'Actions', label: 'Back up now', keywords: ['backup', 'export', 'save', 'drive'], icon: <DatabaseBackup size={16} />, run: go('/settings') },
       );
     }

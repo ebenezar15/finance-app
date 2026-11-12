@@ -69,7 +69,7 @@ export default function Settings() {
       <Security />
       <Panel title="Moving from another app?">
         <p className="sub">Bring your entries over from the CashBook app (Excel or CSV export), or from a bank statement.</p>
-        <Link to="/inbox" className="btn-primary mt-3 inline-flex">Import from CashBook</Link>
+        <Link to="/inbox#cashbook" className="btn-primary mt-3 inline-flex">Import from CashBook</Link>
       </Panel>
       {import.meta.env.VITE_EMBED !== '1' && <BackupCenter />}
       <Backup currency={profile.currency} />

@@ -2,12 +2,13 @@
 
 Google Pay, PhonePe, Paytm and banks don't let other apps read your payment history, and a web app can't read your SMS or notifications by itself. So Tandem can't connect to them directly. What it can do is read the **message** each payment produces, if your phone passes it along.
 
-There are three ways to get a payment message into Tandem:
+There are four ways to get a payment into Tandem:
 
 | Way | Effort | Works on |
 |---|---|---|
 | **Automatic forwarding** by an automation app | Set up once | Android (app notifications and SMS), iPhone (bank SMS) |
 | **Share to Tandem** from the SMS or message | One tap per payment | Android, with Tandem installed |
+| **Read a payment screenshot** in Inbox & import | Pick the screenshot | Any phone |
 | **Paste a message** in Inbox & import | Copy and paste | Any phone |
 
 Whichever way it arrives, Tandem does the same thing with it:
@@ -61,3 +62,13 @@ The text can be the raw body (`text/plain`), JSON `{ "text": "…" }`, a form fi
 ## Share to Tandem
 
 With Tandem installed from Chrome on Android, it appears in the share sheet. Open the SMS or message, tap **Share**, choose **Tandem**. A link of the form `/?capture=<text>` does the same thing.
+
+## Read a payment screenshot
+
+In **Inbox & import → Read a payment screenshot**, choose one or more screenshots of the "payment successful" screen from Google Pay, PhonePe, Paytm or a bank app. Tandem reads the amount, who it went to, the reference and the date, shows you what it found, and adds it when you tap **Add it** (or **Edit first** to change anything).
+
+- The picture is read **on the phone** and never uploaded.
+- The reader (about 7 MB) is downloaded the first time you use it, then kept, so it works offline afterwards.
+- Failed and pending payments are not added.
+- It works best with the full, uncropped success screen. If the rupee sign wasn't clear, Tandem says so and asks you to check the amount.
+- It isn't available in the Claude share link, only in the installed app and the website.
