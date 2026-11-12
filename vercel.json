@@ -4,6 +4,7 @@
   "installCommand": "npm ci",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "redirects": [{ "source": "/tandem-companion.apk", "destination": "https://github.com/ebenezar15/finance-app/releases/download/companion/tandem-companion.apk", "permanent": false }],
   "rewrites": [{ "source": "/((?!api/|assets/|sw\\.js|workbox-.*\\.js|manifest\\.webmanifest|.*\\.(?:png|svg|ico|json|txt)$).*)", "destination": "/index.html" }],
   "headers": [
     { "source": "/sw.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }, { "key": "Service-Worker-Allowed", "value": "/" }] },

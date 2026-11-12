@@ -2,11 +2,12 @@
 
 Google Pay, PhonePe, Paytm and banks don't let other apps read your payment history, and a web app can't read your SMS or notifications by itself. So Tandem can't connect to them directly. What it can do is read the **message** each payment produces, if your phone passes it along.
 
-There are four ways to get a payment into Tandem:
+There are five ways to get a payment into Tandem:
 
 | Way | Effort | Works on |
 |---|---|---|
-| **Automatic forwarding** by an automation app | Set up once | Android (app notifications and SMS), iPhone (bank SMS) |
+| **Automatic detection** with the Tandem Companion app | Set up once | Android (bank SMS and payment app notifications) |
+| **Automatic forwarding** by an automation app | Set up once | Android (MacroDroid, Tasker), iPhone (Shortcuts, bank SMS only) |
 | **Share to Tandem** from the SMS or message | One tap per payment | Android, with Tandem installed |
 | **Read a payment screenshot** in Inbox & import | Pick the screenshot | Any phone |
 | **Paste a message** in Inbox & import | Copy and paste | Any phone |
@@ -23,7 +24,25 @@ Whichever way it arrives, Tandem does the same thing with it:
 
 You need a Tandem account (Settings → Account & unlock). Then go to **Settings → Automatic payment capture** and tap **Turn on**. You get a private capture link.
 
-### Android: MacroDroid
+### Android: the Tandem Companion app (easiest)
+
+A website, even an installed one, is never allowed to read SMS. The companion is a small Android app that does that one job.
+
+1. In Tandem, open **Settings → Automatic payment capture** and tap **Download Tandem Companion**. Open the downloaded file to install it. It isn't on the Play Store, so Android asks you to allow installing from your browser and may show a "not verified" notice.
+2. Back in Tandem, on the same phone, tap **Connect the companion app**. (Or copy your capture link and paste it into the companion.)
+3. In the companion, tap **Allow reading SMS** and **Allow notification access**. If Android says the setting is restricted: open the companion's **App info**, tap **⋮**, choose **Allow restricted settings**, and try again.
+4. Tap **Send a test to Tandem**.
+
+What it does:
+
+- reads each incoming SMS, and notifications from payment apps only (Google Pay, PhonePe, Paytm, BHIM, Amazon Pay, CRED and similar);
+- checks each one **on the phone** and forwards only those about money moving: credited, debited, spent, paid, received, withdrawn and so on;
+- never forwards one-time passwords or ordinary messages;
+- sends only to your own Tandem capture link, queues while you're offline, and catches up when the connection returns, including after a restart.
+
+Turn off battery saving for the companion so Android doesn't stop it. The source is in `android/`; the build is `.github/workflows/companion.yml`.
+
+### Android alternative: MacroDroid
 
 1. Install **MacroDroid** (free) from the Play Store. Tasker and similar apps work the same way.
 2. **Add Macro**. Trigger: **Device Events → Notification → Notification Received**. Pick the apps to watch: Google Pay, PhonePe, Paytm, your bank's app and your SMS app.

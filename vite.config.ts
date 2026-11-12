@@ -45,7 +45,7 @@ export default defineConfig(({ mode }) => {
       },
       workbox: {
         clientsClaim: true, skipWaiting: true, cleanupOutdatedCaches: true, globPatterns: ['**/*.{js,mjs,css,html,svg,png,woff,woff2}'],
-        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, navigateFallback: 'index.html', navigateFallbackDenylist: [/^\/api\//],
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, navigateFallback: 'index.html', navigateFallbackDenylist: [/^\/api\//, /\.apk$/],
         // The screenshot reader's engine and language data (about 7 MB) aren't downloaded at install.
         // They're fetched the first time a screenshot is read, then kept so it works offline afterwards.
         globIgnores: ['**/tesseract-core*', '**/eng.traineddata*', '**/worker.min-*'],
